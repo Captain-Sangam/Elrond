@@ -20,6 +20,7 @@ You → Prompt → [OpenAI, Anthropic, Google] → Debate Round → Synthesis �
 ## Screenshots
 
 The app features a dark-themed macOS-native interface with:
+
 - Three side-by-side agent response panels with streaming
 - Collapsible debate round showing each agent's critique
 - Prominent synthesis panel with the consolidated answer
@@ -30,6 +31,7 @@ The app features a dark-themed macOS-native interface with:
 ## GitHub Integration
 
 Elrond can query your GitHub repositories directly. Type `/github` in the message input to:
+
 - Browse all your repos (personal and org) in a searchable dropdown
 - Select a repo to attach to your message
 - Ask about PRs, commits, issues, branches, contributors — all fetched live from the GitHub API
@@ -37,18 +39,16 @@ Elrond can query your GitHub repositories directly. Type `/github` in the messag
 
 ### What the agents can access
 
-| Data | Example Prompt |
-|------|---------------|
-| Pull Requests (with diffs, reviews) | "Summarize the last 5 PRs" |
-| Commits (with stats, files) | "What changed in the last 10 commits?" |
-| Issues (with comments) | "List open bugs and their status" |
-| Branches | "What branches exist?" |
-| Contributors | "Who are the top contributors?" |
-| Source Code (indexed repos) | "How does the auth middleware work?" |
+| Data                                | Example Prompt                         |
+| ----------------------------------- | -------------------------------------- |
+| Pull Requests (with diffs, reviews) | "Summarize the last 5 PRs"             |
+| Commits (with stats, files)         | "What changed in the last 10 commits?" |
+| Issues (with comments)              | "List open bugs and their status"      |
+| Branches                            | "What branches exist?"                 |
+| Contributors                        | "Who are the top contributors?"        |
+| Source Code (indexed repos)         | "How does the auth middleware work?"   |
 
 ## Install
-
-### From Source
 
 ```bash
 git clone https://github.com/YOUR_USERNAME/elrond.git
@@ -57,12 +57,7 @@ npm install
 npm run dev
 ```
 
-### Via Homebrew (coming soon)
-
-```bash
-brew tap YOUR_USERNAME/elrond
-brew install elrond
-```
+That's it. No signing, no certificates, no Homebrew taps.
 
 ## Requirements
 
@@ -81,6 +76,7 @@ A setup wizard walks you through:
 ## Features
 
 ### Core Deliberation
+
 - Three-agent fan-out with parallel streaming
 - Structured debate round with critique prompts
 - Configurable synthesis (pick which agent synthesizes)
@@ -88,6 +84,7 @@ A setup wizard walks you through:
 - Conversation context — follow-up questions carry full history
 
 ### GitHub Code Q&A
+
 - `/github` slash command with repo selector dropdown
 - Organization support — configure orgs in Settings to see their repos
 - Live GitHub API tools — PRs, commits, issues, branches, contributors
@@ -95,6 +92,7 @@ A setup wizard walks you through:
 - Auto-detection of `owner/repo` patterns in prompts
 
 ### UI & UX
+
 - macOS-native window with hidden titlebar and traffic lights
 - Session sidebar with search, starring, rename, delete
 - Syntax-highlighted code blocks (One Dark theme) with copy buttons
@@ -106,6 +104,7 @@ A setup wizard walks you through:
 - Export sessions as Markdown or JSON
 
 ### Settings
+
 - Per-provider model selection (live dropdowns from API)
 - Custom system prompt for all agents
 - Submit key preference (Cmd+Enter or Enter)
@@ -141,20 +140,21 @@ src/
 
 ### Tech Stack
 
-| Layer | Technology |
-|-------|-----------|
-| UI | Electron + React + TypeScript |
-| Styling | Tailwind CSS + shadcn/ui |
-| State | Zustand |
-| Database | SQLite via better-sqlite3, FTS5 for search |
-| Key Storage | macOS Keychain via keytar |
-| AI SDKs | openai, @anthropic-ai/sdk, @google/generative-ai |
-| Markdown | react-markdown + remark-gfm + react-syntax-highlighter |
-| Build | electron-vite + electron-builder |
+| Layer       | Technology                                             |
+| ----------- | ------------------------------------------------------ |
+| UI          | Electron + React + TypeScript                          |
+| Styling     | Tailwind CSS + shadcn/ui                               |
+| State       | Zustand                                                |
+| Database    | SQLite via better-sqlite3, FTS5 for search             |
+| Key Storage | macOS Keychain via keytar                              |
+| AI SDKs     | openai, @anthropic-ai/sdk, @google/generative-ai       |
+| Markdown    | react-markdown + remark-gfm + react-syntax-highlighter |
+| Build       | electron-vite                                          |
 
 ### Data Storage
 
 All data stays local:
+
 - **Database**: `~/Library/Application Support/Elrond/elrond.db` (SQLite)
 - **API Keys**: macOS Keychain under `com.elrond.app`
 - **Cloned Repos**: `~/Library/Application Support/Elrond/repos/`
@@ -164,8 +164,6 @@ All data stays local:
 ```bash
 npm run dev      # Start in development mode with HMR
 npm run build    # Build for production
-npm run pack     # Package as .app (unsigned)
-npm run dist     # Create distributable .dmg
 ```
 
 ## Cost Awareness

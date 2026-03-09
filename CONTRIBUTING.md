@@ -80,23 +80,25 @@ The most common contribution. Each provider implements the `AgentProvider` inter
 Create `src/main/orchestrator/providers/yourprovider.ts`:
 
 ```typescript
-import type { AgentProvider, ChatMessage, StreamChunk } from './types'
+import type { AgentProvider, ChatMessage, StreamChunk } from "./types";
 
 export class YourProvider implements AgentProvider {
-  readonly name = 'yourprovider'
+  readonly name = "yourprovider";
 
   async *streamChat(
     messages: ChatMessage[],
     model: string,
     apiKey: string,
-    signal?: AbortSignal
+    signal?: AbortSignal,
   ): AsyncIterable<StreamChunk> {
     // Initialize client with apiKey
     // Stream responses, yielding { delta: string } for each chunk
   }
 }
 
-export async function listYourProviderModels(apiKey: string): Promise<string[]> {
+export async function listYourProviderModels(
+  apiKey: string,
+): Promise<string[]> {
   // Fetch available models from the API
 }
 
@@ -122,12 +124,15 @@ GitHub tools fetch live data from the GitHub API and inject it into the agent co
 Add to `src/main/github/tools.ts`:
 
 ```typescript
-export async function fetchYourData(owner: string, repo: string): Promise<string> {
+export async function fetchYourData(
+  owner: string,
+  repo: string,
+): Promise<string> {
   const data = await ghFetch<YourResponseType>(
-    `https://api.github.com/repos/${owner}/${repo}/your-endpoint`
-  )
+    `https://api.github.com/repos/${owner}/${repo}/your-endpoint`,
+  );
   // Format as readable markdown
-  return formattedString
+  return formattedString;
 }
 ```
 
@@ -170,6 +175,7 @@ The debate and synthesis prompts in `src/main/orchestrator/prompts.ts` are the m
 ## Reporting Issues
 
 Use GitHub Issues. Please include:
+
 - macOS version
 - Steps to reproduce
 - Expected vs. actual behavior

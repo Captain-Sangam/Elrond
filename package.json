@@ -29,9 +29,7 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "postinstall": "electron-builder install-app-deps",
-    "pack": "electron-builder --dir",
-    "dist": "electron-builder"
+    "postinstall": "electron-builder install-app-deps"
   },
   "dependencies": {
     "@anthropic-ai/sdk": "^0.39.0",
