@@ -1,10 +1,30 @@
 {
   "name": "elrond",
   "version": "0.1.0",
-  "description": "A multi-agent deliberation system for Mac",
+  "description": "A multi-agent deliberation system for Mac — structured debates between AI models with GitHub integration",
   "main": "./out/main/index.js",
   "author": "Ajay Sangamithran",
   "license": "MIT",
+  "homepage": "https://github.com/YOUR_USERNAME/elrond",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/YOUR_USERNAME/elrond.git"
+  },
+  "bugs": {
+    "url": "https://github.com/YOUR_USERNAME/elrond/issues"
+  },
+  "keywords": [
+    "ai",
+    "multi-agent",
+    "deliberation",
+    "llm",
+    "openai",
+    "anthropic",
+    "gemini",
+    "electron",
+    "macos",
+    "github"
+  ],
   "scripts": {
     "dev": "electron-vite dev",
     "build": "electron-vite build",

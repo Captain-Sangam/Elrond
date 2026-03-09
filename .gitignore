@@ -1,6 +1,33 @@
+# Dependencies
 node_modules/
+
+# Build output
 out/
 dist/
+
+# Database
 *.db
 *.db-journal
+*.db-wal
+
+# macOS
 .DS_Store
+.AppleDouble
+.LSOverride
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Environment
+.env
+.env.local
+
+# Logs
+*.log
+npm-debug.log*
+
+# Cloned repos (user data)
+repos/
