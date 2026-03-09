@@ -1,0 +1,73 @@
+{
+  "name": "elrond",
+  "version": "0.1.0",
+  "description": "A multi-agent deliberation system for Mac — structured debates between AI models with GitHub integration",
+  "main": "./out/main/index.js",
+  "author": "Ajay Sangamithran",
+  "license": "MIT",
+  "homepage": "https://github.com/Captain-Sangam/elrond",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Captain-Sangam/elrond.git"
+  },
+  "bugs": {
+    "url": "https://github.com/Captain-Sangam/elrond/issues"
+  },
+  "keywords": [
+    "ai",
+    "multi-agent",
+    "deliberation",
+    "llm",
+    "openai",
+    "anthropic",
+    "gemini",
+    "electron",
+    "macos",
+    "github"
+  ],
+  "scripts": {
+    "dev": "electron-vite dev",
+    "build": "electron-vite build",
+    "preview": "electron-vite preview",
+    "postinstall": "electron-builder install-app-deps"
+  },
+  "dependencies": {
+    "@anthropic-ai/sdk": "^0.39.0",
+    "@google/generative-ai": "^0.21.0",
+    "better-sqlite3": "^11.7.0",
+    "keytar": "^7.9.0",
+    "openai": "^4.82.0",
+    "react-markdown": "^9.0.3",
+    "react-syntax-highlighter": "^16.1.1",
+    "remark-gfm": "^4.0.0",
+    "uuid": "^11.1.0",
+    "zustand": "^5.0.3"
+  },
+  "devDependencies": {
+    "@electron-toolkit/preload": "^3.0.1",
+    "@electron-toolkit/utils": "^4.0.0",
+    "@tailwindcss/typography": "^0.5.16",
+    "@types/better-sqlite3": "^7.6.13",
+    "@types/node": "^22.13.0",
+    "@types/react": "^19.0.8",
+    "@types/react-dom": "^19.0.3",
+    "@types/react-syntax-highlighter": "^15.5.13",
+    "@types/uuid": "^10.0.0",
+    "@vitejs/plugin-react": "^5.1.4",
+    "autoprefixer": "^10.4.20",
+    "class-variance-authority": "^0.7.1",
+    "clsx": "^2.1.1",
+    "electron": "^33.3.1",
+    "electron-builder": "^25.1.8",
+    "electron-vite": "^3.0.0",
+    "lucide-react": "^0.474.0",
+    "postcss": "^8.5.1",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "tailwind-merge": "^3.0.1",
+    "tailwindcss": "^3.4.17",
+    "tailwindcss-animate": "^1.0.7",
+    "typescript": "^5.7.3",
+    "vite": "^6.0.0"
+  }
+}
