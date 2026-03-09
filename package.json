@@ -5,13 +5,13 @@
   "main": "./out/main/index.js",
   "author": "Ajay Sangamithran",
   "license": "MIT",
-  "homepage": "https://github.com/YOUR_USERNAME/elrond",
+  "homepage": "https://github.com/Captain-Sangam/elrond",
   "repository": {
     "type": "git",
-    "url": "https://github.com/YOUR_USERNAME/elrond.git"
+    "url": "https://github.com/Captain-Sangam/elrond.git"
   },
   "bugs": {
-    "url": "https://github.com/YOUR_USERNAME/elrond/issues"
+    "url": "https://github.com/Captain-Sangam/elrond/issues"
   },
   "keywords": [
     "ai",

@@ -5,7 +5,7 @@ Thanks for your interest in contributing. Elrond is an open-source multi-agent d
 ## Getting Started
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/elrond.git
+git clone https://github.com/Captain-Sangam/elrond.git
 cd elrond
 npm install
 npm run dev

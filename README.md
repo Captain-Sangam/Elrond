@@ -51,7 +51,7 @@ Elrond can query your GitHub repositories directly. Type `/github` in the messag
 ## Install
 
 ```bash
-git clone https://github.com/YOUR_USERNAME/elrond.git
+git clone https://github.com/Captain-Sangam/elrond.git
 cd elrond
 npm install
 npm run dev
