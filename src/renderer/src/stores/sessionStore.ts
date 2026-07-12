@@ -8,14 +8,29 @@ import type {
   StreamDone,
   StreamError,
   StreamStart,
-  StreamToken
+  StreamToken,
+  StreamToolEvent
 } from '@shared/types'
+
+// One MCP tool call shown inline in a streaming message; upserted by callId
+// as it moves running → ok/error. Live-turn only — not persisted.
+export interface ToolCallChip {
+  callId: string
+  toolName: string
+  serverName: string
+  status: 'running' | 'ok' | 'error'
+  argsPreview?: string
+  resultPreview?: string
+  errorMessage?: string
+  durationMs?: number
+}
 
 export interface AgentStream {
   content: string
   tokenCount: number
   isStreaming: boolean
   error: string | null
+  toolCalls: ToolCallChip[]
 }
 
 export interface DebateVerdict {
@@ -80,6 +95,7 @@ interface SessionState {
   handlePhaseChange: (phase: PhaseChange) => void
   handleModeratorVerdict: (verdict: ModeratorVerdictEvent) => void
   handleNotice: (notice: DeliberationNotice) => void
+  handleStreamTool: (event: StreamToolEvent) => void
   endDeliberation: () => void
   resetStreams: () => void
   reloadMessages: () => Promise<void>
@@ -89,8 +105,27 @@ const emptyStream = (): AgentStream => ({
   content: '',
   tokenCount: 0,
   isStreaming: false,
-  error: null
+  error: null,
+  toolCalls: []
 })
+
+const upsertToolChip = (chips: ToolCallChip[], event: StreamToolEvent): ToolCallChip[] => {
+  const chip: ToolCallChip = {
+    callId: event.callId,
+    toolName: event.toolName,
+    serverName: event.serverName,
+    status: event.status,
+    argsPreview: event.argsPreview,
+    resultPreview: event.resultPreview,
+    errorMessage: event.errorMessage,
+    durationMs: event.durationMs
+  }
+  const idx = chips.findIndex((c) => c.callId === event.callId)
+  if (idx === -1) return [...chips, chip]
+  const next = [...chips]
+  next[idx] = { ...next[idx], ...chip }
+  return next
+}
 
 const emptyRound = (round: number): DebateRoundState => ({
   round,
@@ -259,22 +294,29 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       set((state) => ({
         agentStreams: {
           ...state.agentStreams,
-          [agentId]: { content: fullContent, tokenCount, isStreaming: false, error: null }
+          [agentId]: {
+            content: fullContent,
+            tokenCount,
+            isStreaming: false,
+            error: null,
+            toolCalls: state.agentStreams[agentId]?.toolCalls ?? []
+          }
         }
       }))
     } else if (phase === 'debate') {
       const round = done.round ?? 1
       set((state) => ({
-        debateRounds: updateRoundStream(state.debateRounds, round, agentId, () => ({
+        debateRounds: updateRoundStream(state.debateRounds, round, agentId, (prev) => ({
           content: fullContent,
           tokenCount,
           isStreaming: false,
-          error: null
+          error: null,
+          toolCalls: prev.toolCalls
         }))
       }))
     } else if (phase === 'synthesis') {
       set({
-        synthesisStream: { content: fullContent, tokenCount, isStreaming: false, error: null }
+        synthesisStream: { ...emptyStream(), content: fullContent, tokenCount }
       })
     }
   },
@@ -303,11 +345,35 @@ export const useSessionStore = create<SessionState>((set, get) => ({
             content: '',
             tokenCount: 0,
             error: message,
-            isStreaming: false
+            isStreaming: false,
+            toolCalls: state.agentStreams[agentId]?.toolCalls ?? []
           }
         }
       }))
     }
+  },
+
+  handleStreamTool: (event) => {
+    if (event.phase === 'initial') {
+      set((state) => {
+        const prev = state.agentStreams[event.agentId] || emptyStream()
+        return {
+          agentStreams: {
+            ...state.agentStreams,
+            [event.agentId]: { ...prev, toolCalls: upsertToolChip(prev.toolCalls, event) }
+          }
+        }
+      })
+    } else if (event.phase === 'debate') {
+      const round = event.round ?? 1
+      set((state) => ({
+        debateRounds: updateRoundStream(state.debateRounds, round, event.agentId, (prev) => ({
+          ...prev,
+          toolCalls: upsertToolChip(prev.toolCalls, event)
+        }))
+      }))
+    }
+    // Synthesis never runs tools — nothing to render there
   },
 
   handlePhaseChange: (phase) => {

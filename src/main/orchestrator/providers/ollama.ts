@@ -1,5 +1,14 @@
 import OpenAI from 'openai'
-import { contentToText, type AgentProvider, type ChatMessage, type ContentPart, type StreamChunk } from './types'
+import {
+  contentToText,
+  ToolsUnsupportedError,
+  type AgentProvider,
+  type ChatMessage,
+  type ContentPart,
+  type StreamChatOptions,
+  type StreamChunk
+} from './types'
+import { streamOpenAIChunks, toOpenAIToolMessage, toOpenAITools } from './openai'
 
 export const DEFAULT_OLLAMA_BASE_URL = 'http://localhost:11434'
 
@@ -21,10 +30,12 @@ function toOllamaContentPart(part: ContentPart): OpenAI.Chat.Completions.ChatCom
 }
 
 function toOllamaMessage(m: ChatMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+  const toolMessage = toOpenAIToolMessage(m)
+  if (toolMessage) return toolMessage
   if (m.role === 'user' && typeof m.content !== 'string') {
     return { role: 'user', content: m.content.map(toOllamaContentPart) }
   }
-  return { role: m.role, content: contentToText(m.content) }
+  return { role: m.role as 'system' | 'user' | 'assistant', content: contentToText(m.content) }
 }
 
 function isConnectionError(err: unknown): boolean {
@@ -44,10 +55,11 @@ export class OllamaProvider implements AgentProvider {
     messages: ChatMessage[],
     model: string,
     credential: string,
-    signal?: AbortSignal
+    options?: StreamChatOptions
   ): AsyncIterable<StreamChunk> {
     const baseUrl = normalizeBaseUrl(credential)
     const client = new OpenAI({ apiKey: 'ollama', baseURL: `${baseUrl}/v1` })
+    const withTools = !!options?.tools?.length
 
     let stream: Awaited<ReturnType<typeof client.chat.completions.create>>
     try {
@@ -55,23 +67,25 @@ export class OllamaProvider implements AgentProvider {
         {
           model,
           messages: messages.map(toOllamaMessage),
+          tools: withTools ? toOpenAITools(options!.tools!) : undefined,
           stream: true
         },
-        { signal }
+        { signal: options?.signal }
       )
     } catch (err) {
       if (isConnectionError(err)) {
         throw new Error(`Cannot reach Ollama at ${baseUrl} — is the Ollama server running?`)
       }
+      // Models without a tool template reject the tools param outright
+      if (withTools && err instanceof Error && /does not support tools/i.test(err.message)) {
+        throw new ToolsUnsupportedError(model)
+      }
       throw err
     }
 
-    for await (const chunk of stream as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>) {
-      const delta = chunk.choices[0]?.delta?.content
-      if (delta) {
-        yield { delta }
-      }
-    }
+    yield* streamOpenAIChunks(
+      stream as AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
+    )
   }
 }
 

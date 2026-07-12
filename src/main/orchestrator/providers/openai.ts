@@ -1,5 +1,13 @@
 import OpenAI from 'openai'
-import { contentToText, type AgentProvider, type ChatMessage, type ContentPart, type StreamChunk } from './types'
+import {
+  contentToText,
+  type AgentProvider,
+  type ChatMessage,
+  type ContentPart,
+  type StreamChatOptions,
+  type StreamChunk,
+  type ToolDefinition
+} from './types'
 
 function toOpenAIContentPart(part: ContentPart): OpenAI.Chat.Completions.ChatCompletionContentPart {
   switch (part.type) {
@@ -15,12 +23,75 @@ function toOpenAIContentPart(part: ContentPart): OpenAI.Chat.Completions.ChatCom
   }
 }
 
+export function toOpenAITools(tools: ToolDefinition[]): OpenAI.Chat.Completions.ChatCompletionTool[] {
+  return tools.map((t) => ({
+    type: 'function',
+    function: { name: t.name, description: t.description, parameters: t.inputSchema }
+  }))
+}
+
+// Serializes the tool-protocol roles shared by OpenAI and its compatibles
+// (Ollama). Returns null for roles the caller maps itself.
+export function toOpenAIToolMessage(
+  m: ChatMessage
+): OpenAI.Chat.Completions.ChatCompletionMessageParam | null {
+  if (m.role === 'tool') {
+    const text = contentToText(m.content)
+    return {
+      role: 'tool',
+      tool_call_id: m.toolCallId ?? '',
+      // No native error flag — an explicit prefix tells the model it failed
+      content: m.isError ? `ERROR: ${text}` : text
+    }
+  }
+  if (m.role === 'assistant' && m.toolCalls?.length) {
+    return {
+      role: 'assistant',
+      content: contentToText(m.content) || null,
+      tool_calls: m.toolCalls.map((c) => ({
+        id: c.id,
+        type: 'function' as const,
+        function: { name: c.name, arguments: c.argsJson || '{}' }
+      }))
+    }
+  }
+  return null
+}
+
+// Assembles streamed tool-call fragments and yields our chunk union. Fragments
+// are keyed by index — only the first fragment of a call carries id/name.
+export async function* streamOpenAIChunks(
+  stream: AsyncIterable<OpenAI.Chat.Completions.ChatCompletionChunk>
+): AsyncIterable<StreamChunk> {
+  const pending = new Map<number, { id: string; name: string; args: string }>()
+
+  for await (const chunk of stream) {
+    const delta = chunk.choices[0]?.delta
+    if (delta?.content) {
+      yield { type: 'text', delta: delta.content }
+    }
+    for (const fragment of delta?.tool_calls ?? []) {
+      const entry = pending.get(fragment.index) ?? { id: '', name: '', args: '' }
+      if (fragment.id) entry.id = fragment.id
+      if (fragment.function?.name) entry.name = fragment.function.name
+      if (fragment.function?.arguments) entry.args += fragment.function.arguments
+      pending.set(fragment.index, entry)
+    }
+  }
+
+  for (const [, call] of [...pending.entries()].sort(([a], [b]) => a - b)) {
+    yield { type: 'tool_call', call: { id: call.id, name: call.name, argsJson: call.args } }
+  }
+}
+
 // Only user messages accept multimodal parts; other roles are flattened to text
 function toOpenAIMessage(m: ChatMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+  const toolMessage = toOpenAIToolMessage(m)
+  if (toolMessage) return toolMessage
   if (m.role === 'user' && typeof m.content !== 'string') {
     return { role: 'user', content: m.content.map(toOpenAIContentPart) }
   }
-  return { role: m.role, content: contentToText(m.content) }
+  return { role: m.role as 'system' | 'user' | 'assistant', content: contentToText(m.content) }
 }
 
 export class OpenAIProvider implements AgentProvider {
@@ -30,24 +101,20 @@ export class OpenAIProvider implements AgentProvider {
     messages: ChatMessage[],
     model: string,
     credential: string,
-    signal?: AbortSignal
+    options?: StreamChatOptions
   ): AsyncIterable<StreamChunk> {
     const client = new OpenAI({ apiKey: credential })
     const stream = await client.chat.completions.create(
       {
         model,
         messages: messages.map(toOpenAIMessage),
+        tools: options?.tools?.length ? toOpenAITools(options.tools) : undefined,
         stream: true
       },
-      { signal }
+      { signal: options?.signal }
     )
 
-    for await (const chunk of stream) {
-      const delta = chunk.choices[0]?.delta?.content
-      if (delta) {
-        yield { delta }
-      }
-    }
+    yield* streamOpenAIChunks(stream)
   }
 }
 

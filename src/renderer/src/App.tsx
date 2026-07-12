@@ -3,6 +3,7 @@ import { useSettingsStore } from './stores/settingsStore'
 import { useAgentsStore } from './stores/agentsStore'
 import { useSessionStore } from './stores/sessionStore'
 import { useIndexingStore } from './stores/indexingStore'
+import { useMcpStore } from './stores/mcpStore'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
 import { SessionView } from './components/chat/SessionView'
@@ -23,9 +24,12 @@ export default function App(): React.JSX.Element {
     handleStreamError,
     handlePhaseChange,
     handleModeratorVerdict,
-    handleNotice
+    handleNotice,
+    handleStreamTool
   } = useSessionStore()
   const handleIndexProgress = useIndexingStore((s) => s.handleProgress)
+  const loadMcpServers = useMcpStore((s) => s.loadServers)
+  const handleMcpStatusChanged = useMcpStore((s) => s.handleStatusChanged)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [agentsOpen, setAgentsOpen] = useState(false)
   const [repoPickerOpen, setRepoPickerOpen] = useState(false)
@@ -42,7 +46,8 @@ export default function App(): React.JSX.Element {
     loadSettings()
     loadAgents()
     loadSessions()
-  }, [loadSettings, loadAgents, loadSessions])
+    loadMcpServers()
+  }, [loadSettings, loadAgents, loadSessions, loadMcpServers])
 
   useEffect(() => {
     const unsubStart = window.elrond.onStreamStart(handleStreamStart)
@@ -53,6 +58,8 @@ export default function App(): React.JSX.Element {
     const unsubModerator = window.elrond.onModeratorVerdict(handleModeratorVerdict)
     const unsubNotice = window.elrond.onNotice(handleNotice)
     const unsubIndex = window.elrond.onIndexProgress(handleIndexProgress)
+    const unsubMcpStatus = window.elrond.onMcpStatusChanged(handleMcpStatusChanged)
+    const unsubStreamTool = window.elrond.onStreamTool(handleStreamTool)
 
     return () => {
       unsubStart()
@@ -63,6 +70,8 @@ export default function App(): React.JSX.Element {
       unsubModerator()
       unsubNotice()
       unsubIndex()
+      unsubMcpStatus()
+      unsubStreamTool()
     }
   }, [
     handleStreamStart,
@@ -72,7 +81,9 @@ export default function App(): React.JSX.Element {
     handlePhaseChange,
     handleModeratorVerdict,
     handleNotice,
-    handleIndexProgress
+    handleIndexProgress,
+    handleMcpStatusChanged,
+    handleStreamTool
   ])
 
   if (!loaded) {

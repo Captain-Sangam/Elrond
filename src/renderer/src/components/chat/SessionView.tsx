@@ -213,7 +213,8 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
       provider: a.provider,
       content: r.streams[a.id]?.content || '',
       isStreaming: r.streams[a.id]?.isStreaming || false,
-      error: r.streams[a.id]?.error || null
+      error: r.streams[a.id]?.error || null,
+      toolCalls: r.streams[a.id]?.toolCalls || []
     })),
     verdict: r.verdict,
     moderating: r.moderating
@@ -373,6 +374,7 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                           isStreaming={stream?.isStreaming || false}
                           error={stream?.error || null}
                           tokenCount={stream?.tokenCount}
+                          toolCalls={stream?.toolCalls}
                         />
                       )
                     })}

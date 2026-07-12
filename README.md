@@ -53,6 +53,10 @@ After setup, manage the council in the **Agents** dialog (bot icon in the sideba
 
 GitHub and Tavily keys are only needed for the `/github` integration and the web-search globe toggle respectively — the core deliberation works without them.
 
+## MCP Tools (optional)
+
+Settings → MCP connects [Model Context Protocol](https://modelcontextprotocol.io) servers whose tools the agents call live during a deliberation. Six presets ship out of the box — Linear, Notion, GitHub, Sentry, Context7, and Filesystem — plus a form for any custom stdio or HTTP server. Linear/Notion/Sentry sign in through your browser on first connect; secrets go to the macOS Keychain. Stdio presets run via `npx`, so Node.js must be installed.
+
 ## License
 
 MIT — see [LICENSE](LICENSE). Contributions welcome: [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md).

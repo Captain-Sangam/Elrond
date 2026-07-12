@@ -4,7 +4,8 @@ import { MarkdownContent } from './MarkdownContent'
 import { Badge } from '@renderer/components/ui/badge'
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2, Scale, Swords } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
-import type { DebateVerdict } from '@renderer/stores/sessionStore'
+import type { DebateVerdict, ToolCallChip } from '@renderer/stores/sessionStore'
+import { ToolCallChips } from './ToolCallChips'
 
 export interface DebateEntry {
   agentId: string
@@ -13,6 +14,7 @@ export interface DebateEntry {
   content: string
   isStreaming: boolean
   error?: string | null
+  toolCalls?: ToolCallChip[]
 }
 
 export interface DebateRoundView {
@@ -111,6 +113,9 @@ export function DebatePanel({ rounds, maxRounds, isActive }: DebatePanelProps): 
                       <Badge variant="secondary" className="text-[10px]">
                         {entry.agentName}
                       </Badge>
+                      {entry.toolCalls && entry.toolCalls.length > 0 && (
+                        <ToolCallChips chips={entry.toolCalls} />
+                      )}
                       <div>
                         {entry.error ? (
                           <div className="text-xs text-destructive">{entry.error}</div>

@@ -6,6 +6,8 @@ import { Button } from '@renderer/components/ui/button'
 import { Copy, Check, AlertCircle, Loader2 } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
 import { PROVIDER_COLORS } from '@renderer/lib/providers'
+import { ToolCallChips } from './ToolCallChips'
+import type { ToolCallChip } from '@renderer/stores/sessionStore'
 
 interface AgentPanelProps {
   agentName: string
@@ -14,6 +16,7 @@ interface AgentPanelProps {
   isStreaming: boolean
   error: string | null
   tokenCount?: number
+  toolCalls?: ToolCallChip[]
 }
 
 export function AgentPanel({
@@ -22,7 +25,8 @@ export function AgentPanel({
   content,
   isStreaming,
   error,
-  tokenCount
+  tokenCount,
+  toolCalls
 }: AgentPanelProps): React.JSX.Element {
   const [copied, setCopied] = React.useState(false)
 
@@ -58,7 +62,8 @@ export function AgentPanel({
         </div>
       </div>
 
-      <div className="p-3">
+      <div className="space-y-2 p-3">
+        {toolCalls && toolCalls.length > 0 && <ToolCallChips chips={toolCalls} />}
         {error ? (
           <div className="flex items-start gap-2 rounded-md bg-destructive/10 p-3 text-sm text-destructive">
             <AlertCircle className="mt-0.5 h-4 w-4 shrink-0" />
