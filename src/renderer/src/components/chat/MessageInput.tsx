@@ -4,14 +4,45 @@ import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { Input } from '@renderer/components/ui/input'
+import { Badge } from '@renderer/components/ui/badge'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn, formatBytes } from '@renderer/lib/utils'
-import { Send, StopCircle, GitBranch, X, Search, Lock, Star, Loader2, Paperclip, FileText } from 'lucide-react'
-import type { GitHubRepo } from '@shared/types'
+import { useIndexingStore, isIndexing, INDEX_STAGE_LABELS } from '@renderer/stores/indexingStore'
+import {
+  Send,
+  StopCircle,
+  GitBranch,
+  X,
+  Search,
+  Lock,
+  Star,
+  Loader2,
+  Paperclip,
+  FileText,
+  Globe,
+  Check,
+  Download
+} from 'lucide-react'
+import type { GitHubRepo, IndexedRepo } from '@shared/types'
 
 interface SelectedRepo {
-  full_name: string
+  repo: GitHubRepo
+  indexed: IndexedRepo | null
 }
+
+interface SlashCommand {
+  name: string
+  insert: string
+  description: string
+}
+
+const COMMANDS: SlashCommand[] = [
+  {
+    name: 'github',
+    insert: '/github ',
+    description: 'Query a GitHub repo — agents get its PRs, issues, commits and indexed code'
+  }
+]
 
 // Mirrors the whitelist enforced in src/main/attachments.ts
 const ACCEPTED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf']
@@ -44,15 +75,23 @@ export function MessageInput(): React.JSX.Element {
   const [input, setInput] = useState('')
   const [showRepoDropdown, setShowRepoDropdown] = useState(false)
   const [repos, setRepos] = useState<GitHubRepo[]>([])
+  const [indexedRepos, setIndexedRepos] = useState<IndexedRepo[]>([])
   const [reposLoading, setReposLoading] = useState(false)
   const [repoSearch, setRepoSearch] = useState('')
   const [selectedRepo, setSelectedRepo] = useState<SelectedRepo | null>(null)
   const [attachments, setAttachments] = useState<PendingAttachment[]>([])
   const [attachError, setAttachError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
+  const [webSearchArmed, setWebSearchArmed] = useState(false)
+  const [caretPos, setCaretPos] = useState(0)
+  const [commandIndex, setCommandIndex] = useState(0)
+  const [commandsDismissed, setCommandsDismissed] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const commandMenuRef = useRef<HTMLDivElement>(null)
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const indexProgress = useIndexingStore((s) => s.progress)
+  const clearIndexProgress = useIndexingStore((s) => s.clearProgress)
   const {
     activeSessionId,
     sessions,
@@ -72,15 +111,51 @@ export function MessageInput(): React.JSX.Element {
       if (!showRepoDropdown) {
         setShowRepoDropdown(true)
         setReposLoading(true)
-        window.elrond.listGitHubRepos().then((r) => {
-          setRepos(r)
-          setReposLoading(false)
-        }).catch(() => setReposLoading(false))
+        Promise.all([window.elrond.listGitHubRepos(), window.elrond.getIndexedRepos()])
+          .then(([r, indexed]) => {
+            setRepos(r)
+            setIndexedRepos(indexed)
+            setReposLoading(false)
+          })
+          .catch(() => setReposLoading(false))
       }
     } else if (showRepoDropdown && !selectedRepo) {
       setShowRepoDropdown(false)
     }
   }, [input, showRepoDropdown, selectedRepo])
+
+  // Slash-command autocomplete: visible while the caret sits in a leading /token
+  const firstToken = input.split(/\s/)[0]
+  const commandMatches =
+    input.startsWith('/') && !showRepoDropdown && !commandsDismissed && caretPos <= firstToken.length
+      ? COMMANDS.filter((c) => `/${c.name}`.startsWith(firstToken.toLowerCase()) && `/${c.name}` !== firstToken.toLowerCase())
+      : []
+  const commandMenuVisible = commandMatches.length > 0
+
+  const syncCaret = useCallback(() => {
+    setCaretPos(textareaRef.current?.selectionStart ?? 0)
+  }, [])
+
+  const completeCommand = useCallback((command: SlashCommand) => {
+    setInput(command.insert)
+    setCommandIndex(0)
+    setTimeout(() => textareaRef.current?.focus(), 0)
+  }, [])
+
+  // Once a run finishes, refresh indexed state for the dropdown + selected chip
+  useEffect(() => {
+    const done = Object.values(indexProgress).filter((p) => p.stage === 'done')
+    if (done.length === 0) return
+    window.elrond.getIndexedRepos().then((indexed) => {
+      setIndexedRepos(indexed)
+      setSelectedRepo((prev) =>
+        prev
+          ? { ...prev, indexed: indexed.find((ir) => ir.github_id === prev.repo.id) ?? prev.indexed }
+          : prev
+      )
+      done.forEach((p) => clearIndexProgress(p.repoId))
+    })
+  }, [indexProgress, clearIndexProgress])
 
   // Close dropdown on outside click
   useEffect(() => {
@@ -94,18 +169,30 @@ export function MessageInput(): React.JSX.Element {
     return () => document.removeEventListener('mousedown', handler)
   }, [showRepoDropdown])
 
-  const handleSelectRepo = useCallback((repo: GitHubRepo) => {
-    setSelectedRepo({ full_name: repo.full_name })
-    setShowRepoDropdown(false)
-    setRepoSearch('')
-    // Strip the /github prefix from the input
-    setInput((prev) => prev.replace(/^\/github\s*/i, ''))
-    setTimeout(() => textareaRef.current?.focus(), 50)
-  }, [])
+  const handleSelectRepo = useCallback(
+    (repo: GitHubRepo) => {
+      setSelectedRepo({
+        repo,
+        indexed: indexedRepos.find((ir) => ir.github_id === repo.id) ?? null
+      })
+      setShowRepoDropdown(false)
+      setRepoSearch('')
+      // Strip the /github prefix from the input
+      setInput((prev) => prev.replace(/^\/github\s*/i, ''))
+      setTimeout(() => textareaRef.current?.focus(), 50)
+    },
+    [indexedRepos]
+  )
 
   const handleClearRepo = useCallback(() => {
     setSelectedRepo(null)
   }, [])
+
+  const handleIndexSelected = useCallback(() => {
+    if (!selectedRepo) return
+    // Progress streams into the indexing store; errors show as its 'error' stage
+    window.elrond.indexRepo(selectedRepo.repo).catch(() => {})
+  }, [selectedRepo])
 
   const addFiles = useCallback(
     async (files: File[]) => {
@@ -219,6 +306,8 @@ export function MessageInput(): React.JSX.Element {
     const attachmentsToSend = attachments
     setAttachments([])
     setAttachError(null)
+    const webSearchToSend = webSearchArmed
+    setWebSearchArmed(false)
     // Preview URLs are handed to the store, which revokes them when the
     // deliberation ends
     startDeliberation(
@@ -240,16 +329,18 @@ export function MessageInput(): React.JSX.Element {
       synthesizer,
       systemPrompt: systemPrompt || undefined,
       repoId: activeSession?.repo_id || undefined,
-      repoFullName: repoToSend?.full_name || undefined,
+      repoFullName: repoToSend?.repo.full_name || undefined,
       attachments: attachmentsToSend.map((a) => ({
         fileName: a.fileName,
         mimeType: a.mimeType,
         data: a.data
-      }))
+      })),
+      webSearch: webSearchToSend || undefined
     })
   }, [
     input,
     attachments,
+    webSearchArmed,
     isDeliberating,
     activeSessionId,
     sessions,
@@ -274,6 +365,26 @@ export function MessageInput(): React.JSX.Element {
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
       if (showRepoDropdown) return
+
+      if (commandMenuVisible) {
+        if (e.key === 'ArrowDown' || e.key === 'ArrowUp') {
+          e.preventDefault()
+          const delta = e.key === 'ArrowDown' ? 1 : -1
+          setCommandIndex((prev) => (prev + delta + commandMatches.length) % commandMatches.length)
+          return
+        }
+        if (e.key === 'Enter' || e.key === 'Tab') {
+          e.preventDefault()
+          completeCommand(commandMatches[Math.min(commandIndex, commandMatches.length - 1)])
+          return
+        }
+        if (e.key === 'Escape') {
+          e.preventDefault()
+          setCommandsDismissed(true)
+          return
+        }
+      }
+
       if (submitKey === 'CmdEnter' && e.key === 'Enter' && (e.metaKey || e.ctrlKey)) {
         e.preventDefault()
         handleSubmit()
@@ -282,7 +393,7 @@ export function MessageInput(): React.JSX.Element {
         handleSubmit()
       }
     },
-    [submitKey, handleSubmit, showRepoDropdown]
+    [submitKey, handleSubmit, showRepoDropdown, commandMenuVisible, commandMatches, commandIndex, completeCommand]
   )
 
   const filteredRepos = repos.filter((r) =>
@@ -300,19 +411,65 @@ export function MessageInput(): React.JSX.Element {
       onDrop={handleDrop}
     >
       <div className="mx-auto max-w-4xl">
-        {/* Selected repo badge */}
+        {/* Selected repo badge — green when indexed, amber (with Index now) when not */}
         {selectedRepo && (
-          <div className="mb-2 flex items-center gap-2">
-            <div className="flex items-center gap-1.5 rounded-full border border-green-500/30 bg-green-500/10 px-3 py-1">
-              <GitBranch className="h-3 w-3 text-green-400" />
-              <span className="text-xs font-medium text-green-400">{selectedRepo.full_name}</span>
-              <button onClick={handleClearRepo} className="ml-1 rounded-full p-0.5 hover:bg-green-500/20">
-                <X className="h-2.5 w-2.5 text-green-400" />
+          <div className="mb-2 flex flex-wrap items-center gap-2">
+            <div
+              className={cn(
+                'flex items-center gap-1.5 rounded-full border px-3 py-1',
+                selectedRepo.indexed
+                  ? 'border-green-500/30 bg-green-500/10 text-green-400'
+                  : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+              )}
+            >
+              <GitBranch className="h-3 w-3" />
+              <span className="text-xs font-medium">{selectedRepo.repo.full_name}</span>
+              <button onClick={handleClearRepo} className="ml-1 rounded-full p-0.5 hover:bg-background/40">
+                <X className="h-2.5 w-2.5" />
               </button>
             </div>
-            <span className="text-[10px] text-muted-foreground">
-              Agents will have access to this repo's PRs, issues, commits & code
-            </span>
+            {(() => {
+              const prog = indexProgress[selectedRepo.repo.id]
+              if (isIndexing(prog)) {
+                return (
+                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                    <Loader2 className="h-2.5 w-2.5 animate-spin" />
+                    {INDEX_STAGE_LABELS[prog!.stage]}
+                  </span>
+                )
+              }
+              if (prog?.stage === 'error') {
+                return (
+                  <span className="text-[10px] text-destructive">
+                    Indexing failed: {prog.message ?? 'unknown error'}
+                  </span>
+                )
+              }
+              if (selectedRepo.indexed) {
+                return (
+                  <span className="text-[10px] text-muted-foreground">
+                    Indexed · {selectedRepo.indexed.file_count} files — agents get PRs, issues,
+                    commits & code
+                  </span>
+                )
+              }
+              return (
+                <>
+                  <span className="text-[10px] text-amber-400">
+                    Not indexed — agents will only get PRs/issues/commits, not code
+                  </span>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-6 gap-1 px-2 text-[10px]"
+                    onClick={handleIndexSelected}
+                  >
+                    <Download className="h-2.5 w-2.5" />
+                    Index now
+                  </Button>
+                </>
+              )
+            })()}
           </div>
         )}
 
@@ -354,6 +511,38 @@ export function MessageInput(): React.JSX.Element {
         )}
 
         <div className={cn('relative rounded-md', isDragOver && 'ring-2 ring-primary/50')}>
+          {/* Slash-command autocomplete */}
+          {commandMenuVisible && (
+            <div
+              ref={commandMenuRef}
+              className="absolute bottom-full left-0 z-50 mb-2 w-full rounded-lg border bg-popover p-1 shadow-xl"
+            >
+              {commandMatches.map((command, i) => {
+                const active = i === Math.min(commandIndex, commandMatches.length - 1)
+                return (
+                  <button
+                    key={command.name}
+                    className={cn(
+                      'flex w-full items-center gap-3 rounded-md px-2.5 py-2 text-left transition-colors',
+                      active ? 'bg-accent' : 'hover:bg-accent/50'
+                    )}
+                    onMouseDown={(e) => {
+                      e.preventDefault()
+                      completeCommand(command)
+                    }}
+                    onMouseEnter={() => setCommandIndex(i)}
+                  >
+                    <span className="shrink-0 font-mono text-xs text-primary">/{command.name}</span>
+                    <span className="text-[10px] text-muted-foreground">{command.description}</span>
+                  </button>
+                )
+              })}
+              <div className="border-t px-2.5 py-1 text-[9px] text-muted-foreground">
+                ↑↓ to navigate · Tab or Enter to select · Esc to dismiss
+              </div>
+            </div>
+          )}
+
           {/* Repo dropdown */}
           {showRepoDropdown && (
             <div
@@ -408,6 +597,16 @@ export function MessageInput(): React.JSX.Element {
                               {repo.stargazers_count}
                             </span>
                           )}
+                          {indexedRepos.some((ir) => ir.github_id === repo.id) ? (
+                            <Badge className="shrink-0 border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                              <Check className="mr-0.5 h-2.5 w-2.5" />
+                              Indexed
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="shrink-0 text-[9px] text-muted-foreground">
+                              Not indexed
+                            </Badge>
+                          )}
                         </div>
                       </button>
                     ))}
@@ -424,13 +623,19 @@ export function MessageInput(): React.JSX.Element {
           <Textarea
             ref={textareaRef}
             value={input}
-            onChange={(e) => setInput(e.target.value)}
+            onChange={(e) => {
+              setInput(e.target.value)
+              setCommandsDismissed(false)
+              syncCaret()
+            }}
             onKeyDown={handleKeyDown}
+            onKeyUp={syncCaret}
+            onClick={syncCaret}
             onPaste={handlePaste}
             placeholder={hasRepoContext
               ? 'Ask about the repo — PRs, commits, issues, code...'
               : 'Ask anything... Type /github to query a repo.'}
-            className="min-h-[60px] max-h-[200px] resize-none pr-24 text-sm"
+            className="min-h-[60px] max-h-[200px] resize-none pr-32 text-sm"
             disabled={isDeliberating}
             rows={2}
           />
@@ -446,6 +651,16 @@ export function MessageInput(): React.JSX.Element {
             }}
           />
           <div className="absolute bottom-2 right-2 flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className={cn('h-8 w-8', webSearchArmed && 'bg-primary/15 text-primary')}
+              onClick={() => setWebSearchArmed((v) => !v)}
+              disabled={isDeliberating}
+              title="Search the web for this message"
+            >
+              <Globe className="h-4 w-4" />
+            </Button>
             <Button
               variant="ghost"
               size="icon"
@@ -487,6 +702,7 @@ export function MessageInput(): React.JSX.Element {
             {' · Type '}
             <span className="font-mono text-primary/70">/github</span>
             {' to query a repo'}
+            {webSearchArmed && <span className="text-primary"> · Web search on</span>}
           </span>
           <span className="text-[10px] text-muted-foreground">
             {providers.filter((p) => p.enabled).length} agents active

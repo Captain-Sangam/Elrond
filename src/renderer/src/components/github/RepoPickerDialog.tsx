@@ -7,6 +7,7 @@ import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { Search, GitBranch, Star, Lock, Loader2, Download, Check, Trash2 } from 'lucide-react'
 import type { GitHubRepo, IndexedRepo } from '@shared/types'
 import { useSessionStore } from '@renderer/stores/sessionStore'
+import { useIndexingStore, isIndexing, INDEX_STAGE_LABELS } from '@renderer/stores/indexingStore'
 
 interface RepoPickerDialogProps {
   open: boolean
@@ -20,7 +21,8 @@ export function RepoPickerDialog({ open, onOpenChange }: RepoPickerDialogProps):
   const [indexing, setIndexing] = useState<number | null>(null)
   const [searchQuery, setSearchQuery] = useState('')
   const [hasToken, setHasToken] = useState(false)
-  const { createSession, setActiveSession, loadSessions } = useSessionStore()
+  const { setActiveSession, loadSessions } = useSessionStore()
+  const progress = useIndexingStore((s) => s.progress)
 
   useEffect(() => {
     if (!open) return
@@ -155,7 +157,9 @@ export function RepoPickerDialog({ open, onOpenChange }: RepoPickerDialogProps):
             <div className="space-y-0.5">
               {filteredRepos.map((repo) => {
                 const isIndexed = indexedRepos.some((ir) => ir.github_id === repo.id)
-                const isCurrentlyIndexing = indexing === repo.id
+                const prog = progress[repo.id]
+                const isCurrentlyIndexing = indexing === repo.id || isIndexing(prog)
+                const indexingLabel = prog && isIndexing(prog) ? INDEX_STAGE_LABELS[prog.stage] : 'Indexing...'
                 return (
                   <div
                     key={repo.id}
@@ -194,7 +198,7 @@ export function RepoPickerDialog({ open, onOpenChange }: RepoPickerDialogProps):
                         ) : (
                           <Download className="h-3 w-3" />
                         )}
-                        {isCurrentlyIndexing ? 'Indexing...' : 'Index'}
+                        {isCurrentlyIndexing ? indexingLabel : 'Index'}
                       </Button>
                     )}
                   </div>

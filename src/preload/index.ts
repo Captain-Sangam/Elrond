@@ -1,6 +1,8 @@
 import { contextBridge, ipcRenderer } from 'electron'
 import type {
+  DeliberationNotice,
   ElrondAPI,
+  IndexProgressEvent,
   ModeratorVerdictEvent,
   PhaseChange,
   StreamDone,
@@ -15,6 +17,7 @@ const api: ElrondAPI = {
   setApiKey: (provider, key) => ipcRenderer.invoke('keys:set', provider, key),
   deleteApiKey: (provider) => ipcRenderer.invoke('keys:delete', provider),
   testApiKey: (provider, key) => ipcRenderer.invoke('keys:test', provider, key),
+  testWebSearchKey: (key) => ipcRenderer.invoke('websearch:test', key),
 
   // Sessions
   getSessions: () => ipcRenderer.invoke('sessions:list'),
@@ -67,6 +70,16 @@ const api: ElrondAPI = {
     const handler = (_: Electron.IpcRendererEvent, verdict: ModeratorVerdictEvent) => callback(verdict)
     ipcRenderer.on('stream:moderator', handler)
     return () => ipcRenderer.removeListener('stream:moderator', handler)
+  },
+  onNotice: (callback) => {
+    const handler = (_: Electron.IpcRendererEvent, notice: DeliberationNotice) => callback(notice)
+    ipcRenderer.on('stream:notice', handler)
+    return () => ipcRenderer.removeListener('stream:notice', handler)
+  },
+  onIndexProgress: (callback) => {
+    const handler = (_: Electron.IpcRendererEvent, progress: IndexProgressEvent) => callback(progress)
+    ipcRenderer.on('github:indexProgress', handler)
+    return () => ipcRenderer.removeListener('github:indexProgress', handler)
   },
 
   // Models

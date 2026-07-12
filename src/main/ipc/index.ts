@@ -4,6 +4,7 @@ import { registerSettingsHandlers } from './settings'
 import { registerAgentsHandlers } from './agents'
 import { registerShortcutHandlers } from './shortcut'
 import { registerGitHubHandlers } from './github'
+import { registerWebSearchHandlers } from './websearch'
 
 export function registerAllIpcHandlers(): void {
   registerKeysHandlers()
@@ -12,4 +13,5 @@ export function registerAllIpcHandlers(): void {
   registerAgentsHandlers()
   registerShortcutHandlers()
   registerGitHubHandlers()
+  registerWebSearchHandlers()
 }

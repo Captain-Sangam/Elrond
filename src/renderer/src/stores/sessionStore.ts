@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import type {
+  DeliberationNotice,
   Message,
   ModeratorVerdictEvent,
   PhaseChange,
@@ -61,6 +62,9 @@ interface SessionState {
   deliberationStartedAt: number | null
   deliberationEndedAt: number | null
 
+  // Non-fatal notices for the in-flight turn (e.g. "Web search skipped: ...")
+  notices: string[]
+
   loadSessions: () => Promise<void>
   setActiveSession: (id: string | null) => Promise<void>
   createSession: (title?: string) => Promise<Session>
@@ -75,6 +79,7 @@ interface SessionState {
   handleStreamError: (error: StreamError) => void
   handlePhaseChange: (phase: PhaseChange) => void
   handleModeratorVerdict: (verdict: ModeratorVerdictEvent) => void
+  handleNotice: (notice: DeliberationNotice) => void
   endDeliberation: () => void
   resetStreams: () => void
   reloadMessages: () => Promise<void>
@@ -146,6 +151,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   callInputTokens: {},
   deliberationStartedAt: null,
   deliberationEndedAt: null,
+  notices: [],
 
   loadSessions: async () => {
     const sessions = await window.elrond.getSessions()
@@ -351,9 +357,20 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     })
   },
 
+  handleNotice: (notice) => {
+    set((state) => ({ notices: [...state.notices, notice.message] }))
+  },
+
   endDeliberation: () => {
     revokePreviews(get().currentAttachments)
-    set({ isDeliberating: false, currentPhase: null, currentPrompt: null, currentAttachments: [] })
+    set((state) => ({
+      isDeliberating: false,
+      currentPhase: null,
+      currentPrompt: null,
+      currentAttachments: [],
+      // Cancelled runs never get a 'complete' event — stop the clock here
+      deliberationEndedAt: state.deliberationEndedAt ?? Date.now()
+    }))
   },
 
   resetStreams: () => {
@@ -367,7 +384,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       totalCost: 0,
       callInputTokens: {},
       deliberationStartedAt: null,
-      deliberationEndedAt: null
+      deliberationEndedAt: null,
+      notices: []
     })
   },
 

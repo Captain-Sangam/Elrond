@@ -1,11 +1,14 @@
 import { app } from 'electron'
 import { join } from 'path'
 import { mkdirSync, readdirSync, readFileSync, statSync, rmSync, existsSync } from 'fs'
-import { execSync } from 'child_process'
+import { execFile } from 'child_process'
+import { promisify } from 'util'
 import { getDb } from '../db'
 import { getApiKey } from '../keychain'
 import { v4 as uuidv4 } from 'uuid'
-import type { GitHubRepo, IndexedRepo } from '../../shared/types'
+import type { GitHubRepo, IndexedRepo, IndexProgressEvent } from '../../shared/types'
+
+const execFileAsync = promisify(execFile)
 
 const REPOS_DIR = join(app.getPath('userData'), 'repos')
 
@@ -182,60 +185,96 @@ function getLanguageFromPath(filePath: string): string | null {
   return (ext && map[ext]) || null
 }
 
-export async function indexRepo(repo: GitHubRepo): Promise<IndexedRepo> {
-  const db = getDb()
-  const token = await getApiKey('github')
-  if (!token) throw new Error('No GitHub token configured')
+// Settings tab and the chat "Index now" button can race on the same repo —
+// dedupe so both callers share one run
+const inFlightIndexes = new Map<number, Promise<IndexedRepo>>()
 
-  mkdirSync(REPOS_DIR, { recursive: true })
+export function indexRepo(
+  repo: GitHubRepo,
+  onProgress: (progress: IndexProgressEvent) => void = () => {}
+): Promise<IndexedRepo> {
+  const inFlight = inFlightIndexes.get(repo.id)
+  if (inFlight) return inFlight
 
-  const repoDir = join(REPOS_DIR, repo.full_name.replace('/', '_'))
+  const run = doIndexRepo(repo, onProgress).finally(() => inFlightIndexes.delete(repo.id))
+  inFlightIndexes.set(repo.id, run)
+  return run
+}
 
-  // Clone or pull
-  if (existsSync(join(repoDir, '.git'))) {
-    execSync('git pull --ff-only', { cwd: repoDir, timeout: 60_000, stdio: 'pipe' })
-  } else {
-    if (existsSync(repoDir)) rmSync(repoDir, { recursive: true })
-    const cloneUrl = `https://${token}@github.com/${repo.full_name}.git`
-    execSync(`git clone --depth 1 ${cloneUrl} "${repoDir}"`, { timeout: 120_000, stdio: 'pipe' })
-  }
+async function doIndexRepo(
+  repo: GitHubRepo,
+  onProgress: (progress: IndexProgressEvent) => void
+): Promise<IndexedRepo> {
+  const emit = (event: Omit<IndexProgressEvent, 'repoId' | 'fullName'>): void =>
+    onProgress({ repoId: repo.id, fullName: repo.full_name, ...event })
 
-  // Remove old index if exists
-  const existing = db.prepare('SELECT id FROM indexed_repos WHERE github_id = ?').get(repo.id) as
-    | { id: string }
-    | undefined
+  try {
+    const db = getDb()
+    const token = await getApiKey('github')
+    if (!token) throw new Error('No GitHub token configured')
 
-  if (existing) {
-    db.prepare('DELETE FROM repo_files WHERE repo_id = ?').run(existing.id)
-    db.prepare('DELETE FROM indexed_repos WHERE id = ?').run(existing.id)
-  }
+    mkdirSync(REPOS_DIR, { recursive: true })
 
-  // Walk and index files
-  const files = walkDir(repoDir, repoDir)
-  const repoId = uuidv4()
+    const repoDir = join(REPOS_DIR, repo.full_name.replace('/', '_'))
 
-  db.prepare(
-    'INSERT INTO indexed_repos (id, github_id, full_name, local_path, file_count) VALUES (?, ?, ?, ?, ?)'
-  ).run(repoId, repo.id, repo.full_name, repoDir, files.length)
-
-  const insertFile = db.prepare(
-    'INSERT INTO repo_files (repo_id, path, content, language, size) VALUES (?, ?, ?, ?, ?)'
-  )
-
-  const batchInsert = db.transaction(() => {
-    for (const file of files) {
-      insertFile.run(repoId, file.path, file.content, getLanguageFromPath(file.path), file.size)
+    // Clone or pull — execFile (not execSync) so the main process stays responsive
+    emit({ stage: 'cloning' })
+    if (existsSync(join(repoDir, '.git'))) {
+      await execFileAsync('git', ['pull', '--ff-only'], { cwd: repoDir, timeout: 60_000 })
+    } else {
+      if (existsSync(repoDir)) rmSync(repoDir, { recursive: true })
+      const cloneUrl = `https://${token}@github.com/${repo.full_name}.git`
+      await execFileAsync('git', ['clone', '--depth', '1', cloneUrl, repoDir], { timeout: 120_000 })
     }
-  })
-  batchInsert()
 
-  return {
-    id: repoId,
-    github_id: repo.id,
-    full_name: repo.full_name,
-    local_path: repoDir,
-    indexed_at: new Date().toISOString(),
-    file_count: files.length
+    // Remove old index if exists — but keep its id: sessions reference it
+    // via sessions.repo_id, and a reindex must not orphan them
+    const existing = db.prepare('SELECT id FROM indexed_repos WHERE github_id = ?').get(repo.id) as
+      | { id: string }
+      | undefined
+
+    if (existing) {
+      db.prepare('DELETE FROM repo_files WHERE repo_id = ?').run(existing.id)
+      db.prepare('DELETE FROM indexed_repos WHERE id = ?').run(existing.id)
+    }
+
+    // Walk and index files
+    emit({ stage: 'scanning' })
+    await new Promise(setImmediate) // let the progress event flush before the sync walk
+    const files = walkDir(repoDir, repoDir)
+    const repoId = existing?.id ?? uuidv4()
+
+    emit({ stage: 'storing' })
+    await new Promise(setImmediate)
+
+    db.prepare(
+      'INSERT INTO indexed_repos (id, github_id, full_name, local_path, file_count) VALUES (?, ?, ?, ?, ?)'
+    ).run(repoId, repo.id, repo.full_name, repoDir, files.length)
+
+    const insertFile = db.prepare(
+      'INSERT INTO repo_files (repo_id, path, content, language, size) VALUES (?, ?, ?, ?, ?)'
+    )
+
+    const batchInsert = db.transaction(() => {
+      for (const file of files) {
+        insertFile.run(repoId, file.path, file.content, getLanguageFromPath(file.path), file.size)
+      }
+    })
+    batchInsert()
+
+    emit({ stage: 'done', fileCount: files.length })
+
+    return {
+      id: repoId,
+      github_id: repo.id,
+      full_name: repo.full_name,
+      local_path: repoDir,
+      indexed_at: new Date().toISOString(),
+      file_count: files.length
+    }
+  } catch (err) {
+    emit({ stage: 'error', message: err instanceof Error ? err.message : 'Indexing failed' })
+    throw err
   }
 }
 

@@ -1,6 +1,7 @@
 import React, { useCallback, useEffect, useState } from 'react'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
+import { useIndexingStore } from './stores/indexingStore'
 import { Sidebar } from './components/layout/Sidebar'
 import { TopBar } from './components/layout/TopBar'
 import { SessionView } from './components/chat/SessionView'
@@ -18,8 +19,10 @@ export default function App(): React.JSX.Element {
     handleStreamDone,
     handleStreamError,
     handlePhaseChange,
-    handleModeratorVerdict
+    handleModeratorVerdict,
+    handleNotice
   } = useSessionStore()
+  const handleIndexProgress = useIndexingStore((s) => s.handleProgress)
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [repoPickerOpen, setRepoPickerOpen] = useState(false)
   const [statsOpen, setStatsOpen] = useState(() => localStorage.getItem('elrond:statsOpen') !== 'false')
@@ -43,6 +46,8 @@ export default function App(): React.JSX.Element {
     const unsubError = window.elrond.onStreamError(handleStreamError)
     const unsubPhase = window.elrond.onPhaseChange(handlePhaseChange)
     const unsubModerator = window.elrond.onModeratorVerdict(handleModeratorVerdict)
+    const unsubNotice = window.elrond.onNotice(handleNotice)
+    const unsubIndex = window.elrond.onIndexProgress(handleIndexProgress)
 
     return () => {
       unsubStart()
@@ -51,6 +56,8 @@ export default function App(): React.JSX.Element {
       unsubError()
       unsubPhase()
       unsubModerator()
+      unsubNotice()
+      unsubIndex()
     }
   }, [
     handleStreamStart,
@@ -58,7 +65,9 @@ export default function App(): React.JSX.Element {
     handleStreamDone,
     handleStreamError,
     handlePhaseChange,
-    handleModeratorVerdict
+    handleModeratorVerdict,
+    handleNotice,
+    handleIndexProgress
   ])
 
   if (!loaded) {

@@ -92,7 +92,8 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
     currentAttachments,
     agentStreams,
     debateRounds,
-    synthesisStream
+    synthesisStream,
+    notices
   } = useSessionStore()
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
@@ -212,6 +213,8 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
     switch (currentPhase) {
       case 'fetching_context':
         return 'Fetching repository context...'
+      case 'searching_web':
+        return 'Searching the web...'
       case 'initial':
         return 'Agents are answering...'
       case 'debate':
@@ -335,6 +338,12 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                     {phaseLabel}
                   </div>
                 )}
+
+                {notices.map((notice, i) => (
+                  <div key={i} className="text-xs text-amber-400">
+                    {notice}
+                  </div>
+                ))}
 
                 {hasActiveStreams && (
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">

@@ -16,6 +16,7 @@ import {
 import { getApiKey } from '../keychain'
 import { getDb } from '../db'
 import { getRepoContext } from '../github'
+import { formatWebResults, searchWeb } from '../websearch'
 import { detectAndFetchToolsByFullName, detectRepoFromPrompt, formatToolResults } from '../github/tools'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -271,6 +272,24 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
       }
 
       fullSystemPrompt = `You are a code assistant with full access to the repository "${resolvedFullName}". You have access to the repository's pull requests, commits, issues, and other GitHub data${resolvedIndexedId ? ', as well as the indexed source code' : ''}. Use all available context to give thorough, specific answers. Reference PR numbers, commit SHAs, file paths, and line numbers when relevant.\n\n${contextSections}\n\n${fullSystemPrompt}`
+    }
+
+    // Web search (globe toggle) — non-fatal: a failed search must never sink
+    // the deliberation, it just proceeds without the extra context
+    if (request.webSearch) {
+      send('stream:phase', { phase: 'searching_web' })
+      try {
+        const results = await searchWeb(prompt.slice(0, 400))
+        if (results.length > 0) {
+          fullSystemPrompt = `${formatWebResults(results)}\n\n${fullSystemPrompt}`
+        } else {
+          send('stream:notice', { message: 'Web search returned no results — continuing without.' })
+        }
+      } catch (err) {
+        send('stream:notice', {
+          message: `Web search skipped: ${err instanceof Error ? err.message : 'unknown error'}`
+        })
+      }
     }
 
     if (fullSystemPrompt) {

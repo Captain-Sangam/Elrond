@@ -34,8 +34,12 @@ export function registerGitHubHandlers(): void {
     return listGitHubRepos()
   })
 
-  ipcMain.handle('github:indexRepo', async (_, repo: GitHubRepo) => {
-    return indexRepo(repo)
+  ipcMain.handle('github:indexRepo', async (event, repo: GitHubRepo) => {
+    return indexRepo(repo, (progress) => {
+      if (!event.sender.isDestroyed()) {
+        event.sender.send('github:indexProgress', progress)
+      }
+    })
   })
 
   ipcMain.handle('github:getIndexedRepos', () => {
