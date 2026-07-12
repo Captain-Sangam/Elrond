@@ -329,6 +329,14 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
               </div>
             )}
 
+            {/* Non-fatal notices — shown during AND after the turn (a failed
+                turn completes instantly, so these must outlive isDeliberating) */}
+            {notices.map((notice, i) => (
+              <div key={i} className="text-xs text-amber-400">
+                {notice}
+              </div>
+            ))}
+
             {/* Active streaming panels — only while deliberating */}
             {isDeliberating && (
               <div className="space-y-4">
@@ -338,12 +346,6 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                     {phaseLabel}
                   </div>
                 )}
-
-                {notices.map((notice, i) => (
-                  <div key={i} className="text-xs text-amber-400">
-                    {notice}
-                  </div>
-                ))}
 
                 {hasActiveStreams && (
                   <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">

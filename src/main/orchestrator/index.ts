@@ -551,6 +551,12 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
         }
       }
     }
+  } catch (err) {
+    // Without this, an unexpected throw only rejects the IPC promise, which
+    // the renderer never displays — the turn would fail silently
+    if (!signal.aborted) {
+      send('stream:notice', { message: `Deliberation failed: ${cleanErrorMessage(err)}` })
+    }
   } finally {
     db.prepare("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?").run(sessionId)
     if (currentAbortController === abortController) {

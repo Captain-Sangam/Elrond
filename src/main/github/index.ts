@@ -4,6 +4,7 @@ import { mkdirSync, readdirSync, readFileSync, statSync, rmSync, existsSync } fr
 import { execFile } from 'child_process'
 import { promisify } from 'util'
 import { getDb } from '../db'
+import { toFtsQuery } from '../db/fts'
 import { getApiKey } from '../keychain'
 import { v4 as uuidv4 } from 'uuid'
 import type { GitHubRepo, IndexedRepo, IndexProgressEvent } from '../../shared/types'
@@ -303,17 +304,25 @@ export function searchRepoCode(
 ): { path: string; content: string; score: number }[] {
   const db = getDb()
 
-  // FTS search
-  const ftsResults = db
-    .prepare(
-      `SELECT rf.path, rf.content, bm25(repo_files_fts) as score
-       FROM repo_files_fts fts
-       JOIN repo_files rf ON rf.id = fts.rowid
-       WHERE rf.repo_id = ? AND repo_files_fts MATCH ?
-       ORDER BY score
-       LIMIT 15`
-    )
-    .all(repoId, query) as { path: string; content: string; score: number }[]
+  // FTS search — sanitized: raw prompts contain MATCH syntax characters
+  const ftsQuery = toFtsQuery(query, 'any')
+  let ftsResults: { path: string; content: string; score: number }[] = []
+  if (ftsQuery) {
+    try {
+      ftsResults = db
+        .prepare(
+          `SELECT rf.path, rf.content, bm25(repo_files_fts) as score
+           FROM repo_files_fts fts
+           JOIN repo_files rf ON rf.id = fts.rowid
+           WHERE rf.repo_id = ? AND repo_files_fts MATCH ?
+           ORDER BY score
+           LIMIT 15`
+        )
+        .all(repoId, ftsQuery) as { path: string; content: string; score: number }[]
+    } catch {
+      // fall through to the LIKE fallback
+    }
+  }
 
   if (ftsResults.length > 0) return ftsResults
 
