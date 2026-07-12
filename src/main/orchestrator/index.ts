@@ -517,6 +517,7 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
       })
     } else {
       const synthesisPrompt = getSynthesisPrompt(
+        prompt,
         agents.map((ag) => ({
           name: PROVIDER_LABELS[ag.provider.name],
           initial: ag.initial,
