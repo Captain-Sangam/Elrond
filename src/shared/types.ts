@@ -66,6 +66,9 @@ export interface Setting {
 
 export type ProviderName = 'openai' | 'anthropic' | 'google'
 
+// Keychain identifiers: the three LLM providers plus the Tavily web-search key
+export type KeyProvider = ProviderName | 'tavily'
+
 export interface ProviderConfig {
   name: ProviderName
   label: string
@@ -113,9 +116,25 @@ export interface StreamError {
 }
 
 export interface PhaseChange {
-  phase: 'fetching_context' | 'initial' | 'debate' | 'moderating' | 'synthesis' | 'complete'
+  phase: 'fetching_context' | 'searching_web' | 'initial' | 'debate' | 'moderating' | 'synthesis' | 'complete'
   round?: number
   maxRounds?: number
+}
+
+// Non-fatal notices surfaced during a deliberation (channel 'stream:notice')
+export interface DeliberationNotice {
+  message: string
+}
+
+// Progress of a repo indexing run (channel 'github:indexProgress').
+// Keyed by the GitHub numeric id — the IndexedRepo uuid doesn't exist yet
+// during the 'cloning' stage.
+export interface IndexProgressEvent {
+  repoId: number
+  fullName: string
+  stage: 'cloning' | 'scanning' | 'storing' | 'done' | 'error'
+  fileCount?: number
+  message?: string
 }
 
 // Emitted after the moderator reviews a debate round (channel 'stream:moderator')
@@ -141,14 +160,16 @@ export interface DeliberationRequest {
   repoId?: string
   repoFullName?: string
   attachments?: AttachmentPayload[]
+  webSearch?: boolean
 }
 
 export interface ElrondAPI {
   // Keychain
-  getApiKey: (provider: ProviderName) => Promise<string | null>
-  setApiKey: (provider: ProviderName, key: string) => Promise<void>
-  deleteApiKey: (provider: ProviderName) => Promise<void>
+  getApiKey: (provider: KeyProvider) => Promise<string | null>
+  setApiKey: (provider: KeyProvider, key: string) => Promise<void>
+  deleteApiKey: (provider: KeyProvider) => Promise<void>
   testApiKey: (provider: ProviderName, key: string) => Promise<boolean>
+  testWebSearchKey: (key: string) => Promise<boolean>
 
   // Sessions
   getSessions: () => Promise<Session[]>
@@ -178,6 +199,8 @@ export interface ElrondAPI {
   onStreamError: (callback: (error: StreamError) => void) => () => void
   onPhaseChange: (callback: (phase: PhaseChange) => void) => () => void
   onModeratorVerdict: (callback: (verdict: ModeratorVerdictEvent) => void) => () => void
+  onNotice: (callback: (notice: DeliberationNotice) => void) => () => void
+  onIndexProgress: (callback: (progress: IndexProgressEvent) => void) => () => void
 
   // Models
   listModels: (provider: ProviderName, apiKey: string) => Promise<string[]>

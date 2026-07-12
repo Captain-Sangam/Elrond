@@ -41,7 +41,7 @@ Format your response EXACTLY as:
 <your critique of the other agents' positions>
 
 ## Revised Answer
-<your complete, self-contained answer to the user's query. It fully replaces your previous answer and must not reference the debate itself.>`
+<your complete, self-contained answer to the user's query. It fully replaces your previous answer and must not reference the debate itself. It must obey any format, length or style constraints in the user's question — "one line only" means exactly one line, "name only" means just the name.>`
 }
 
 // Splits a debate response into its critique and revised-answer sections.
@@ -113,6 +113,7 @@ export function parseModeratorVerdict(raw: string): ModeratorVerdict {
 }
 
 export function getSynthesisPrompt(
+  userPrompt: string,
   finalPositions: { name: string; initial: string; final: string }[],
   roundSummaries: { round: number; disagreements: string[] }[]
 ): string {
@@ -135,19 +136,24 @@ export function getSynthesisPrompt(
           : `- Round ${s.round}: no substantive disagreements remained`
       )
       .join('\n')
-    debateContext = `\n\nThe agents debated for ${roundSummaries.length} round(s). The moderator's per-round findings:\n${summaryLines}`
+    debateContext = `\nThe agents debated for ${roundSummaries.length} round(s). The moderator's per-round findings:\n${summaryLines}\n`
   }
 
-  return `You are the synthesizer in a multi-agent deliberation. Multiple AI agents have each provided a response to the user's query${debated ? ', then debated and revised their positions across one or more rounds' : ''}. Your job is to produce a final, consolidated answer that:
+  return `You are the synthesizer in a multi-agent deliberation. Multiple AI agents answered the user's question below${debated ? ', then debated and revised their positions' : ''}. Your output will be shown to the user as THE final answer.
 
-1. **Integrates the best reasoning** from all agents
-2. **Resolves disagreements** by explaining which position is stronger and why
-3. **Notes remaining uncertainty** — explicitly list any points where the agents genuinely disagree and no clear resolution exists
-4. **Is comprehensive but concise** — the user should not need to read the individual responses${debateContext}
+User question:
+${userPrompt}
 
-Here are the agent outputs:
+Rules:
+1. **Answer the user's question directly** — do not summarize the deliberation, mention the agents, or add meta-commentary about the process
+2. **Obey the user's format, length and style constraints EXACTLY.** "One line only" means exactly one line; "name only" means just the name; "in JSON" means valid JSON. When a constraint conflicts with completeness, the constraint wins
+3. Integrate the strongest, best-supported reasoning from the agents; where they disagreed, adopt the position with the better evidence
+4. Mention residual uncertainty only if it materially changes the answer — and keep it within the user's format constraints
+5. No headings, titles or preamble unless the user's question asks for them
+${debateContext}
+Agent outputs:
 
 ${sections}
 
-Now produce the final synthesized answer.`
+Now write the final answer exactly as the user should see it.`
 }

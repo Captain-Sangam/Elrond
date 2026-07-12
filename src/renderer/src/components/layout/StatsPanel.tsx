@@ -142,7 +142,9 @@ export function StatsPanel(): React.JSX.Element {
     return sum + estimateCost(model, acc.input, acc.output)
   }, 0)
 
-  const elapsed = deliberationStartedAt ? (deliberationEndedAt ?? now) - deliberationStartedAt : null
+  const elapsed = deliberationStartedAt
+    ? Math.max(0, (deliberationEndedAt ?? now) - deliberationStartedAt)
+    : null
 
   const lastVerdict = debateRounds.length > 0 ? debateRounds[debateRounds.length - 1].verdict : null
 

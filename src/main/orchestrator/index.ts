@@ -16,6 +16,7 @@ import {
 import { getApiKey } from '../keychain'
 import { getDb } from '../db'
 import { getRepoContext } from '../github'
+import { formatWebResults, searchWeb } from '../websearch'
 import { detectAndFetchToolsByFullName, detectRepoFromPrompt, formatToolResults } from '../github/tools'
 import { v4 as uuidv4 } from 'uuid'
 
@@ -273,6 +274,24 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
       fullSystemPrompt = `You are a code assistant with full access to the repository "${resolvedFullName}". You have access to the repository's pull requests, commits, issues, and other GitHub data${resolvedIndexedId ? ', as well as the indexed source code' : ''}. Use all available context to give thorough, specific answers. Reference PR numbers, commit SHAs, file paths, and line numbers when relevant.\n\n${contextSections}\n\n${fullSystemPrompt}`
     }
 
+    // Web search (globe toggle) — non-fatal: a failed search must never sink
+    // the deliberation, it just proceeds without the extra context
+    if (request.webSearch) {
+      send('stream:phase', { phase: 'searching_web' })
+      try {
+        const results = await searchWeb(prompt.slice(0, 400))
+        if (results.length > 0) {
+          fullSystemPrompt = `${formatWebResults(results)}\n\n${fullSystemPrompt}`
+        } else {
+          send('stream:notice', { message: 'Web search returned no results — continuing without.' })
+        }
+      } catch (err) {
+        send('stream:notice', {
+          message: `Web search skipped: ${err instanceof Error ? err.message : 'unknown error'}`
+        })
+      }
+    }
+
     if (fullSystemPrompt) {
       baseMessages.push({ role: 'system', content: fullSystemPrompt })
     }
@@ -498,6 +517,7 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
       })
     } else {
       const synthesisPrompt = getSynthesisPrompt(
+        prompt,
         agents.map((ag) => ({
           name: PROVIDER_LABELS[ag.provider.name],
           initial: ag.initial,
@@ -531,6 +551,12 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
           })
         }
       }
+    }
+  } catch (err) {
+    // Without this, an unexpected throw only rejects the IPC promise, which
+    // the renderer never displays — the turn would fail silently
+    if (!signal.aborted) {
+      send('stream:notice', { message: `Deliberation failed: ${cleanErrorMessage(err)}` })
     }
   } finally {
     db.prepare("UPDATE sessions SET updated_at = datetime('now') WHERE id = ?").run(sessionId)

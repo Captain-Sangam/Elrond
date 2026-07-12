@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { getDb } from '../db'
+import { toFtsQuery } from '../db/fts'
 import { deleteAttachmentFiles, loadAttachmentsForMessages } from '../attachments'
 import { v4 as uuidv4 } from 'uuid'
 import type { Session, Message } from '../../shared/types'
@@ -54,16 +55,21 @@ export function registerSessionsHandlers(): void {
 
   ipcMain.handle('sessions:search', (_, query: string) => {
     const db = getDb()
-    const rows = db
-      .prepare(
-        `SELECT DISTINCT s.* FROM sessions s
-         JOIN messages m ON m.session_id = s.id
-         JOIN messages_fts fts ON fts.rowid = m.rowid
-         WHERE messages_fts MATCH ?
-         ORDER BY s.updated_at DESC`
-      )
-      .all(query) as Session[]
-    return rows
+    const ftsQuery = toFtsQuery(query, 'all')
+    if (!ftsQuery) return []
+    try {
+      return db
+        .prepare(
+          `SELECT DISTINCT s.* FROM sessions s
+           JOIN messages m ON m.session_id = s.id
+           JOIN messages_fts fts ON fts.rowid = m.rowid
+           WHERE messages_fts MATCH ?
+           ORDER BY s.updated_at DESC`
+        )
+        .all(ftsQuery) as Session[]
+    } catch {
+      return []
+    }
   })
 
   ipcMain.handle('messages:list', (_, sessionId: string) => {

@@ -92,7 +92,8 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
     currentAttachments,
     agentStreams,
     debateRounds,
-    synthesisStream
+    synthesisStream,
+    notices
   } = useSessionStore()
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
@@ -212,6 +213,8 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
     switch (currentPhase) {
       case 'fetching_context':
         return 'Fetching repository context...'
+      case 'searching_web':
+        return 'Searching the web...'
       case 'initial':
         return 'Agents are answering...'
       case 'debate':
@@ -325,6 +328,14 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                 </div>
               </div>
             )}
+
+            {/* Non-fatal notices — shown during AND after the turn (a failed
+                turn completes instantly, so these must outlive isDeliberating) */}
+            {notices.map((notice, i) => (
+              <div key={i} className="text-xs text-amber-400">
+                {notice}
+              </div>
+            ))}
 
             {/* Active streaming panels — only while deliberating */}
             {isDeliberating && (
