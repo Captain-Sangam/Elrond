@@ -27,7 +27,7 @@ export const MCP_PRESETS: MCPPreset[] = [
     id: 'linear',
     label: 'Linear',
     description: 'Issues, projects, and cycles from your Linear workspace.',
-    transport: { type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.linear.app/sse'], env: {} },
+    transport: { type: 'stdio', command: 'npx', args: ['-y', 'mcp-remote', 'https://mcp.linear.app/mcp'], env: {} },
     secretFields: [],
     oauthNote: OAUTH_NOTE
   },

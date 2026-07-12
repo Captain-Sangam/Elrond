@@ -14,9 +14,10 @@ import type {
 import * as store from './store'
 import { getShellPath } from './shellEnv'
 
-// Generous: mcp-remote's first run downloads the package and may wait on a
-// browser OAuth approval
-const CONNECT_TIMEOUT_MS = 60_000
+// Generous: mcp-remote's first run downloads the package and then waits for a
+// browser OAuth approval — a short timeout would kill and respawn it, popping
+// a fresh browser tab on every retry
+const CONNECT_TIMEOUT_MS = 120_000
 const CALL_TIMEOUT_MS = 60_000
 const RETRY_DELAYS_MS = [2_000, 8_000, 30_000]
 const STDERR_TAIL_CHARS = 2_048
@@ -96,8 +97,14 @@ function describeError(server: ManagedServer, err: unknown): string {
   if (/ENOENT/.test(raw) && server.config.transport.type === 'stdio') {
     return `${server.config.transport.command} not found — install Node.js (or fix your PATH)`
   }
-  const tail = server.stderrTail.trim().split('\n').slice(-3).join('\n').slice(-300)
-  return tail && !raw.includes(tail) ? `${raw}\n${tail}` : raw
+  // Pull the most descriptive line out of stderr — crash dumps end in stack
+  // frames and JSON fragments, so "last 3 lines" buries the actual error
+  const lines = server.stderrTail.trim().split('\n')
+  const errorLine = lines
+    .filter((l) => /error/i.test(l) && !/^\s+at\s/.test(l) && !/^\s*["{}[\]]/.test(l.trim()))
+    .pop()
+  const detail = (errorLine ?? lines[lines.length - 1] ?? '').trim().slice(0, 300)
+  return detail && !raw.includes(detail) ? `${raw} — ${detail}` : raw
 }
 
 async function buildTransport(server: ManagedServer): Promise<StdioClientTransport | StreamableHTTPClientTransport> {

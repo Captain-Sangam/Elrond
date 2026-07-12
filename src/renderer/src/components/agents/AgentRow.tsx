@@ -61,16 +61,24 @@ export function AgentRow({
         <span className={`h-2 w-2 shrink-0 rounded-full ${PROVIDER_DOT_COLORS[agent.provider]}`} />
         {/* The name is derived from provider:model — it can never drift */}
         <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">{agent.name}</span>
-        {/* Idle ghost text is the same white as text-primary in dark mode, so
-            the states need more than color: muted outline vs filled icon */}
         <Button
-          variant="ghost"
-          size="icon"
-          className={cn('h-7 w-7', isSynthesizer ? 'text-primary' : 'text-muted-foreground')}
+          variant="outline"
+          size="sm"
+          className={cn(
+            'h-7 gap-1 text-xs',
+            isSynthesizer
+              ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 hover:text-amber-400'
+              : 'text-muted-foreground'
+          )}
           onClick={() => setSynthesizer(agent.id)}
-          title={isSynthesizer ? 'This agent is the synthesizer' : 'Make this agent the synthesizer'}
+          title={
+            isSynthesizer
+              ? 'This agent moderates debates and writes the final answer'
+              : 'Make this agent the synthesizer — it moderates debates and writes the final answer'
+          }
         >
-          <Sparkles className={cn('h-3.5 w-3.5', isSynthesizer && 'fill-current')} />
+          <Sparkles className={cn('h-3 w-3', isSynthesizer && 'fill-current')} />
+          Synthesizer
         </Button>
         <Button
           variant={agent.enabled ? 'default' : 'outline'}

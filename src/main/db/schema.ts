@@ -164,6 +164,12 @@ export function runMigrations(db: Database.Database): void {
     "UPDATE settings SET value = 'gemini-pro-latest' WHERE key = 'google_model' AND value = 'gemini-1.5-pro'"
   )
 
+  // Linear retired its SSE MCP endpoint (404s now) — move existing preset
+  // rows to the streamable-HTTP endpoint
+  db.exec(
+    "UPDATE mcp_servers SET transport = replace(transport, 'https://mcp.linear.app/sse', 'https://mcp.linear.app/mcp') WHERE source = 'linear'"
+  )
+
   seedDefaults(db)
 }
 
