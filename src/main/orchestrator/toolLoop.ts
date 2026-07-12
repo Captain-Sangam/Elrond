@@ -160,9 +160,9 @@ export async function runToolLoop(p: ToolLoopParams): Promise<{ content: string 
     } catch (err) {
       if (p.signal.aborted) return { content: fullText }
       if (err instanceof ToolsUnsupportedError && toolsActive) {
-        toolUnsupportedModels.add(modelKey)
+        if (err.cacheable) toolUnsupportedModels.add(modelKey)
         toolsActive = false
-        p.onNotice?.(`${p.model} does not support tools — answering without MCP tools.`)
+        p.onNotice?.(`${err.message} — answering without MCP tools.`)
         continue // retry the same iteration without tools
       }
       throw err

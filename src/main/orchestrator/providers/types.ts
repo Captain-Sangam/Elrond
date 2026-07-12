@@ -18,6 +18,9 @@ export interface ToolCall {
   id: string
   name: string
   argsJson: string // raw JSON string; '' means no arguments
+  // Gemini 3.x: opaque reasoning signature that MUST be echoed back verbatim
+  // on the functionCall part in later turns, or the API 400s
+  thoughtSignature?: string
 }
 
 export interface ChatMessage {
@@ -53,11 +56,17 @@ export interface StreamChatOptions {
   tools?: ToolDefinition[]
 }
 
-// Thrown when a model rejects the tools parameter outright (e.g. Ollama models
-// without a tool template) — the caller retries without tools.
+// Thrown when a model rejects the tools parameter outright — the caller
+// retries without tools. `cacheable` marks rejections inherent to the model
+// (e.g. Ollama models without a tool template) that should skip tools for the
+// rest of the session; schema-specific rejections pass false.
 export class ToolsUnsupportedError extends Error {
-  constructor(model: string) {
-    super(`Model ${model} does not support tools`)
+  constructor(
+    model: string,
+    message?: string,
+    readonly cacheable = true
+  ) {
+    super(message ?? `${model} does not support tools`)
     this.name = 'ToolsUnsupportedError'
   }
 }
