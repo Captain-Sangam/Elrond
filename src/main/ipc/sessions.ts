@@ -92,12 +92,14 @@ export function registerSessionsHandlers(): void {
     const db = getDb()
     const id = uuidv4()
     db.prepare(
-      'INSERT INTO messages (id, session_id, role, agent_name, content, token_count, round) VALUES (?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO messages (id, session_id, role, agent_name, agent_id, provider, content, token_count, round) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       id,
       message.session_id,
       message.role,
       message.agent_name,
+      message.agent_id ?? null,
+      message.provider ?? null,
       message.content,
       message.token_count,
       message.round ?? 0

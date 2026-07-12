@@ -16,6 +16,8 @@ export function runMigrations(db: Database.Database): void {
       session_id TEXT NOT NULL,
       role TEXT NOT NULL CHECK(role IN ('user', 'agent', 'debate', 'moderator', 'synthesis')),
       agent_name TEXT,
+      agent_id TEXT,
+      provider TEXT,
       content TEXT NOT NULL,
       token_count INTEGER,
       round INTEGER NOT NULL DEFAULT 0,
@@ -128,6 +130,19 @@ export function runMigrations(db: Database.Database): void {
     migrateMessagesTable(db)
   }
 
+  // Agent/provider decoupling: agent_name now holds the agent display name, so
+  // provider identity needs its own column. Backfill from the old rows where
+  // agent_name was the provider name, keeping historical sessions colorable.
+  const messageColsAfter = db.pragma('table_info(messages)') as { name: string }[]
+  if (!messageColsAfter.some((c) => c.name === 'agent_id')) {
+    db.exec(`
+      ALTER TABLE messages ADD COLUMN agent_id TEXT;
+      ALTER TABLE messages ADD COLUMN provider TEXT;
+      UPDATE messages SET provider = agent_name
+        WHERE provider IS NULL AND agent_name IN ('openai', 'anthropic', 'google');
+    `)
+  }
+
   // Remove orphaned empty sessions left by the old eager-create New Chat flow
   db.exec(`
     DELETE FROM sessions WHERE title = 'New Session' AND repo_id IS NULL
@@ -156,6 +171,8 @@ function migrateMessagesTable(db: Database.Database): void {
           session_id TEXT NOT NULL,
           role TEXT NOT NULL CHECK(role IN ('user', 'agent', 'debate', 'moderator', 'synthesis')),
           agent_name TEXT,
+          agent_id TEXT,
+          provider TEXT,
           content TEXT NOT NULL,
           token_count INTEGER,
           round INTEGER NOT NULL DEFAULT 0,
@@ -204,6 +221,7 @@ function seedDefaults(db: Database.Database): void {
     ['openai_model', 'gpt-4o'],
     ['anthropic_model', 'claude-sonnet-4-5-20250514'],
     ['google_model', 'gemini-pro-latest'],
+    ['ollama_base_url', 'http://localhost:11434'],
     ['synthesizer', 'anthropic'],
     ['enableDebate', 'true'],
     ['maxDebateRounds', '3'],

@@ -5,20 +5,10 @@ import { Badge } from '@renderer/components/ui/badge'
 import { Button } from '@renderer/components/ui/button'
 import { Copy, Check, AlertCircle, Loader2 } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
-
-const PROVIDER_COLORS: Record<ProviderName, string> = {
-  openai: 'bg-green-500/10 text-green-400 border-green-500/20',
-  anthropic: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  google: 'bg-blue-500/10 text-blue-400 border-blue-500/20'
-}
-
-const PROVIDER_LABELS: Record<ProviderName, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google'
-}
+import { PROVIDER_COLORS } from '@renderer/lib/providers'
 
 interface AgentPanelProps {
+  agentName: string
   provider: ProviderName
   model: string
   content: string
@@ -28,6 +18,7 @@ interface AgentPanelProps {
 }
 
 export function AgentPanel({
+  agentName,
   provider,
   model,
   content,
@@ -48,7 +39,7 @@ export function AgentPanel({
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">
           <Badge variant="outline" className={cn('text-[10px]', PROVIDER_COLORS[provider])}>
-            {PROVIDER_LABELS[provider]}
+            {agentName}
           </Badge>
           <span className="text-[10px] text-muted-foreground">{model}</span>
         </div>

@@ -60,7 +60,15 @@ const COST_PER_1K_OUTPUT: Record<string, number> = {
   'gemini-2.0-flash': 0.0004
 }
 
-export function estimateCost(model: string, inputTokens: number, outputTokens: number): number {
+export function estimateCost(
+  model: string,
+  inputTokens: number,
+  outputTokens: number,
+  provider?: string
+): number {
+  // Local models are free — without this, unknown Ollama models would show
+  // phantom cost from the fallback rates below
+  if (provider === 'ollama') return 0
   const inputCost = (COST_PER_1K_INPUT[model] || 0.003) * (inputTokens / 1000)
   const outputCost = (COST_PER_1K_OUTPUT[model] || 0.015) * (outputTokens / 1000)
   return inputCost + outputCost

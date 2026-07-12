@@ -1,47 +1,57 @@
 import React, { useState, useCallback, useEffect } from 'react'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { useAgentsStore } from '@renderer/stores/agentsStore'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Badge } from '@renderer/components/ui/badge'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@renderer/components/ui/select'
-import { Check, ChevronRight, Key, Loader2, AlertTriangle, Sparkles, Keyboard, Cpu } from 'lucide-react'
+import { Check, ChevronRight, Key, Loader2, AlertTriangle, Sparkles, Keyboard, Cpu, Server } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
 
 type Step = 'keys' | 'models' | 'shortcut'
+type CloudProvider = Exclude<ProviderName, 'ollama'>
 
-const PROVIDERS: { name: ProviderName; label: string; placeholder: string }[] = [
+const PROVIDERS: { name: CloudProvider; label: string; placeholder: string }[] = [
   { name: 'openai', label: 'OpenAI', placeholder: 'sk-...' },
   { name: 'anthropic', label: 'Anthropic', placeholder: 'sk-ant-...' },
   { name: 'google', label: 'Google', placeholder: 'AI...' }
 ]
 
 export function SetupWizard(): React.JSX.Element {
-  const { setSetting, providers } = useSettingsStore()
+  const { setSetting } = useSettingsStore()
   const [step, setStep] = useState<Step>('keys')
-  const [apiKeys, setApiKeys] = useState<Record<ProviderName, string>>({
+  const [apiKeys, setApiKeys] = useState<Record<CloudProvider, string>>({
     openai: '',
     anthropic: '',
     google: ''
   })
-  const [keyStatus, setKeyStatus] = useState<Record<ProviderName, 'idle' | 'testing' | 'valid' | 'invalid'>>({
+  const [keyStatus, setKeyStatus] = useState<Record<CloudProvider, 'idle' | 'testing' | 'valid' | 'invalid'>>({
     openai: 'idle',
     anthropic: 'idle',
     google: 'idle'
   })
-  const [models, setModels] = useState<Record<ProviderName, string>>({
+  const [models, setModels] = useState<Record<CloudProvider, string>>({
     openai: 'gpt-4o',
     anthropic: 'claude-sonnet-4-5-20250514',
     google: 'gemini-pro-latest'
   })
   const [shortcutDisplay, setShortcutDisplay] = useState('⌘ + Shift + Space')
-  const [availableModels, setAvailableModels] = useState<Record<ProviderName, string[]>>({
+  const [availableModels, setAvailableModels] = useState<Record<CloudProvider, string[]>>({
     openai: [],
     anthropic: [],
     google: []
   })
   const [modelsLoading, setModelsLoading] = useState(false)
+  const { ollamaStatus, ollamaModels, testOllama } = useAgentsStore()
+
+  useEffect(() => {
+    testOllama()
+  }, [testOllama])
 
   const validKeyCount = Object.values(keyStatus).filter((s) => s === 'valid').length
+  const localModelCount = ollamaStatus === 'connected' ? ollamaModels.length : 0
+  // A council needs at least 2 agents — cloud keys and local models both count
+  const canContinue = validKeyCount + localModelCount >= 2
 
   useEffect(() => {
     if (step !== 'models') return
@@ -62,7 +72,7 @@ export function SetupWizard(): React.JSX.Element {
       })
     ).then((results) => {
       if (cancelled) return
-      const next: Record<ProviderName, string[]> = { openai: [], anthropic: [], google: [] }
+      const next: Record<CloudProvider, string[]> = { openai: [], anthropic: [], google: [] }
       for (const { name, models: list } of results) {
         next[name] = list
       }
@@ -73,7 +83,7 @@ export function SetupWizard(): React.JSX.Element {
     return () => { cancelled = true }
   }, [step, keyStatus, apiKeys])
 
-  const handleTestKey = useCallback(async (provider: ProviderName) => {
+  const handleTestKey = useCallback(async (provider: CloudProvider) => {
     const key = apiKeys[provider]
     if (!key) return
     setKeyStatus((prev) => ({ ...prev, [provider]: 'testing' }))
@@ -90,8 +100,39 @@ export function SetupWizard(): React.JSX.Element {
     for (const [provider, model] of Object.entries(models)) {
       await setSetting(`${provider}_model`, model)
     }
+    // Agents were pre-seeded at first launch (before any keys existed), so
+    // bring them in line with the wizard's choices
+    const { agents, updateAgent } = useAgentsStore.getState()
+    for (const { name } of PROVIDERS) {
+      const agent = agents.find((a) => a.provider === name)
+      if (agent) {
+        updateAgent(agent.id, { model: models[name], enabled: keyStatus[name] === 'valid' })
+      }
+    }
+
+    // Local-first path: when cloud keys alone can't field a council, create
+    // agents from the pulled Ollama models so the app works out of the box
+    const store = useAgentsStore.getState()
+    const cloudEnabled = PROVIDERS.filter(({ name }) => keyStatus[name] === 'valid').length
+    if (store.ollamaStatus === 'connected' && cloudEnabled < 2) {
+      const existing = new Set(
+        store.agents.filter((a) => a.provider === 'ollama').map((a) => a.model)
+      )
+      for (const model of store.ollamaModels.slice(0, Math.max(2 - cloudEnabled, 1))) {
+        if (!existing.has(model)) {
+          store.addAgent({ provider: 'ollama', name: model, model })
+        }
+      }
+      if (cloudEnabled === 0) {
+        const firstLocal = useAgentsStore
+          .getState()
+          .agents.find((a) => a.provider === 'ollama' && a.enabled)
+        if (firstLocal) store.setSynthesizer(firstLocal.id)
+      }
+    }
+
     await setSetting('setupComplete', 'true')
-  }, [models, setSetting])
+  }, [models, keyStatus, setSetting])
 
   const handleShortcutKeyDown = useCallback((e: React.KeyboardEvent) => {
     e.preventDefault()
@@ -160,7 +201,8 @@ export function SetupWizard(): React.JSX.Element {
               <h2 className="text-lg font-semibold">API Keys</h2>
             </div>
             <p className="text-xs text-muted-foreground">
-              Enter API keys for at least two providers. Keys are stored securely in your macOS Keychain.
+              Enter API keys for cloud providers (stored securely in your macOS Keychain), or run
+              the council fully locally with Ollama — you need at least two agents total.
             </p>
 
             {PROVIDERS.map(({ name, label, placeholder }) => (
@@ -205,17 +247,51 @@ export function SetupWizard(): React.JSX.Element {
               </div>
             ))}
 
+            {/* Local models via Ollama — keyless alternative to cloud keys */}
+            <div className="space-y-1 rounded-lg border p-3">
+              <div className="flex items-center gap-2">
+                <Server className="h-3.5 w-3.5 text-muted-foreground" />
+                <span className="text-xs font-medium">Local models (Ollama)</span>
+                {ollamaStatus === 'testing' && (
+                  <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                )}
+                {ollamaStatus === 'connected' && (
+                  <Badge variant="secondary" className="h-4 gap-0.5 text-[9px] text-green-400">
+                    <Check className="h-2.5 w-2.5" />
+                    {ollamaModels.length} model{ollamaModels.length === 1 ? '' : 's'} found
+                  </Badge>
+                )}
+              </div>
+              {ollamaStatus === 'connected' ? (
+                <p className="text-[10px] text-muted-foreground">
+                  Your pulled models count as agents — no API keys needed to run locally.
+                </p>
+              ) : (
+                <p className="text-[10px] text-muted-foreground">
+                  Not detected — start <span className="font-mono">ollama serve</span> to use local
+                  models (optional).{' '}
+                  <button
+                    onClick={() => testOllama()}
+                    className="text-primary underline decoration-primary/30 underline-offset-2"
+                  >
+                    Retry
+                  </button>
+                </p>
+              )}
+            </div>
+
             <Button
               className="w-full gap-2"
-              disabled={validKeyCount < 2}
+              disabled={!canContinue}
               onClick={() => setStep('models')}
             >
               Continue
               <ChevronRight className="h-4 w-4" />
             </Button>
-            {validKeyCount < 2 && (
+            {!canContinue && (
               <p className="text-center text-[10px] text-muted-foreground">
-                At least 2 valid keys required ({validKeyCount}/2)
+                At least 2 agents required — add API keys or pull local Ollama models (
+                {validKeyCount + localModelCount}/2)
               </p>
             )}
           </div>
@@ -231,6 +307,13 @@ export function SetupWizard(): React.JSX.Element {
             <p className="text-xs text-muted-foreground">
               Choose the default model for each provider. You can change these later in Settings.
             </p>
+
+            {validKeyCount === 0 && localModelCount > 0 && (
+              <div className="rounded-lg border border-dashed p-3 text-xs text-muted-foreground">
+                No cloud providers configured — your local Ollama models (
+                {ollamaModels.slice(0, 2).join(', ')}) will be set up as agents automatically.
+              </div>
+            )}
 
             {modelsLoading && (
               <div className="flex items-center gap-2 py-2 text-xs text-muted-foreground">

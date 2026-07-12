@@ -1,5 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { useAgentsStore } from '@renderer/stores/agentsStore'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/components/ui/dialog'
 import { Tabs, TabsList, TabsTrigger, TabsContent } from '@renderer/components/ui/tabs'
 import { Button } from '@renderer/components/ui/button'
@@ -8,7 +9,7 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@renderer/components/ui/select'
 import { Badge } from '@renderer/components/ui/badge'
 import { GitHubRepoManager } from './GitHubRepoManager'
-import { Check, Loader2, Key, AlertTriangle, GitBranch, Globe } from 'lucide-react'
+import { Check, Loader2, Key, AlertTriangle, GitBranch, Globe, Server, RefreshCw } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
 
 interface SettingsDialogProps {
@@ -16,7 +17,9 @@ interface SettingsDialogProps {
   onOpenChange: (open: boolean) => void
 }
 
-const PROVIDER_LIST: { name: ProviderName; label: string }[] = [
+type CloudProvider = Exclude<ProviderName, 'ollama'>
+
+const PROVIDER_LIST: { name: CloudProvider; label: string }[] = [
   { name: 'openai', label: 'OpenAI' },
   { name: 'anthropic', label: 'Anthropic' },
   { name: 'google', label: 'Google' }
@@ -25,58 +28,41 @@ const PROVIDER_LIST: { name: ProviderName; label: string }[] = [
 type KeyTestStatus = 'idle' | 'testing' | 'valid' | 'invalid'
 
 export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): React.JSX.Element {
-  const {
-    providers,
-    synthesizer,
-    enableDebate,
-    maxDebateRounds,
-    submitKey,
-    systemPrompt,
-    setSetting
-  } = useSettingsStore()
+  const { enableDebate, maxDebateRounds, submitKey, systemPrompt, setSetting } = useSettingsStore()
+  const { ollamaBaseUrl, ollamaStatus, ollamaModels, setOllamaBaseUrl, testOllama } =
+    useAgentsStore()
 
   const [activeTab, setActiveTab] = useState('general')
-  const [apiKeys, setApiKeys] = useState<Record<ProviderName, string>>({
+  const [apiKeys, setApiKeys] = useState<Record<CloudProvider, string>>({
     openai: '',
     anthropic: '',
     google: ''
   })
-  const [keyStatus, setKeyStatus] = useState<Record<ProviderName, KeyTestStatus>>({
+  const [keyStatus, setKeyStatus] = useState<Record<CloudProvider, KeyTestStatus>>({
     openai: 'idle',
     anthropic: 'idle',
     google: 'idle'
   })
   const [localSystemPrompt, setLocalSystemPrompt] = useState(systemPrompt)
+  const [localOllamaUrl, setLocalOllamaUrl] = useState(ollamaBaseUrl)
   const [githubToken, setGithubToken] = useState('')
   const [githubStatus, setGithubStatus] = useState<KeyTestStatus>('idle')
   const [githubOrg, setGithubOrg] = useState('')
   const [tavilyKey, setTavilyKey] = useState('')
   const [tavilyStatus, setTavilyStatus] = useState<KeyTestStatus>('idle')
-  const [availableModels, setAvailableModels] = useState<Record<ProviderName, string[]>>({
-    openai: [],
-    anthropic: [],
-    google: []
-  })
-  const [modelsLoading, setModelsLoading] = useState(false)
 
   useEffect(() => {
     if (open) {
-      setModelsLoading(true)
       PROVIDER_LIST.forEach(async ({ name }) => {
         const key = await window.elrond.getApiKey(name)
         if (key) {
           setApiKeys((prev) => ({ ...prev, [name]: '••••••••' + key.slice(-4) }))
           setKeyStatus((prev) => ({ ...prev, [name]: 'valid' }))
-          try {
-            const models = await window.elrond.listModels(name, key)
-            setAvailableModels((prev) => ({ ...prev, [name]: models }))
-          } catch {
-            // keep empty
-          }
         }
       })
       setLocalSystemPrompt(systemPrompt)
-      setTimeout(() => setModelsLoading(false), 2000)
+      setLocalOllamaUrl(useAgentsStore.getState().ollamaBaseUrl)
+      testOllama()
 
       window.elrond.getGitHubToken().then((has) => {
         if (has) {
@@ -94,7 +80,15 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
         }
       })
     }
-  }, [open, systemPrompt])
+  }, [open, systemPrompt, testOllama])
+
+  const handleCommitOllamaUrl = useCallback(() => {
+    const trimmed = localOllamaUrl.trim() || 'http://localhost:11434'
+    setLocalOllamaUrl(trimmed)
+    if (trimmed !== ollamaBaseUrl) {
+      setOllamaBaseUrl(trimmed)
+    }
+  }, [localOllamaUrl, ollamaBaseUrl, setOllamaBaseUrl])
 
   const handleTestGithubToken = useCallback(async () => {
     if (!githubToken || githubToken.startsWith('••')) return
@@ -120,7 +114,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
     }
   }, [tavilyKey])
 
-  const handleTestKey = useCallback(async (provider: ProviderName, key: string) => {
+  const handleTestKey = useCallback(async (provider: CloudProvider, key: string) => {
     if (!key || key.startsWith('••')) return
     setKeyStatus((prev) => ({ ...prev, [provider]: 'testing' }))
     const valid = await window.elrond.testApiKey(provider, key)
@@ -175,21 +169,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
 
           {/* ------------------------------------------------ General */}
           <TabsContent value="general" className="space-y-6 pt-4">
-            {/* Synthesizer */}
-            <section className="space-y-2">
+            {/* Synthesizer moved to the Agents dialog */}
+            <section className="space-y-1">
               <h3 className="text-sm font-medium">Synthesizer</h3>
-              <Select value={synthesizer} onValueChange={(v) => setSetting('synthesizer', v)}>
-                <SelectTrigger className="h-8 text-xs">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {PROVIDER_LIST.map(({ name, label }) => (
-                    <SelectItem key={name} value={name}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <p className="text-xs text-muted-foreground">
+                The synthesizer is now chosen per agent — open the Agents dialog from the sidebar.
+              </p>
             </section>
 
             {/* Debate */}
@@ -311,43 +296,106 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
               ))}
             </section>
 
-            <section className="space-y-3">
+            <section className="space-y-2">
               <div className="flex items-center gap-2">
-                <h3 className="text-sm font-medium">Models</h3>
-                {modelsLoading && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
+                <Server className="h-4 w-4 text-muted-foreground" />
+                <h3 className="text-sm font-medium">Ollama (local)</h3>
+                {ollamaStatus === 'connected' && (
+                  <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                    Connected
+                  </Badge>
+                )}
               </div>
-              {providers.map((provider) => {
-                const list = availableModels[provider.name]
-                return (
-                  <div key={provider.name} className="space-y-1">
-                    <label className="text-xs text-muted-foreground">{provider.label}</label>
-                    {list.length > 0 ? (
-                      <Select
-                        value={provider.model}
-                        onValueChange={(v) => setSetting(`${provider.name}_model`, v)}
-                      >
-                        <SelectTrigger className="h-8 text-xs">
-                          <SelectValue placeholder="Select a model" />
-                        </SelectTrigger>
-                        <SelectContent className="max-h-52">
-                          {list.map((m) => (
-                            <SelectItem key={m} value={m}>
-                              {m}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
+              <p className="text-xs text-muted-foreground">
+                Run models locally with{' '}
+                <a
+                  href="https://ollama.com"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary underline decoration-primary/30 underline-offset-2"
+                >
+                  Ollama
+                </a>
+                . No API key needed — point Elrond at your server and its models become available
+                as agents.
+              </p>
+              <div className="space-y-1">
+                <label className="text-xs text-muted-foreground">Server URL</label>
+                <div className="flex gap-2">
+                  <Input
+                    value={localOllamaUrl}
+                    onChange={(e) => setLocalOllamaUrl(e.target.value)}
+                    onBlur={handleCommitOllamaUrl}
+                    placeholder="http://localhost:11434"
+                    className="h-8 font-mono text-xs"
+                  />
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="h-8 gap-1"
+                    onClick={() => {
+                      handleCommitOllamaUrl()
+                      testOllama()
+                    }}
+                    disabled={ollamaStatus === 'testing'}
+                  >
+                    {ollamaStatus === 'testing' ? (
+                      <Loader2 className="h-3 w-3 animate-spin" />
+                    ) : ollamaStatus === 'connected' ? (
+                      <Check className="h-3 w-3 text-green-400" />
+                    ) : ollamaStatus === 'error' ? (
+                      <AlertTriangle className="h-3 w-3 text-destructive" />
                     ) : (
-                      <Input
-                        value={provider.model}
-                        onChange={(e) => setSetting(`${provider.name}_model`, e.target.value)}
-                        className="h-8 text-xs"
-                        placeholder="Model name"
-                      />
+                      <Server className="h-3 w-3" />
                     )}
+                    Test
+                  </Button>
+                </div>
+                {ollamaStatus === 'error' && (
+                  <p className="text-[10px] text-destructive">
+                    Cannot reach Ollama at {ollamaBaseUrl} — is{' '}
+                    <span className="font-mono">ollama serve</span> running?
+                  </p>
+                )}
+                {ollamaModels.length > 0 && (
+                  <div className="space-y-1 pt-1">
+                    <div className="flex items-center gap-1.5">
+                      <label className="text-xs text-muted-foreground">
+                        Available models
+                        {ollamaStatus === 'error' && ' (cached)'}
+                      </label>
+                      <button
+                        onClick={() => testOllama()}
+                        className="rounded p-0.5 text-muted-foreground hover:text-foreground"
+                        title="Refresh model list"
+                      >
+                        <RefreshCw className="h-2.5 w-2.5" />
+                      </button>
+                    </div>
+                    <div className="flex flex-wrap gap-1">
+                      {ollamaModels.map((m) => (
+                        <Badge key={m} variant="outline" className="text-[9px]">
+                          {m}
+                        </Badge>
+                      ))}
+                    </div>
                   </div>
-                )
-              })}
+                )}
+                {ollamaStatus === 'connected' && ollamaModels.length === 0 && (
+                  <p className="text-[10px] text-amber-400">
+                    Connected, but no models found — pull one with{' '}
+                    <span className="font-mono">ollama pull llama3.2</span>
+                  </p>
+                )}
+              </div>
+            </section>
+
+            <section className="space-y-1">
+              <h3 className="text-sm font-medium">Models</h3>
+              <p className="text-xs text-muted-foreground">
+                Models are configured per agent — open the Agents dialog from the sidebar to
+                assign a provider and model to each agent.
+              </p>
             </section>
           </TabsContent>
 

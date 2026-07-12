@@ -6,6 +6,7 @@ import { registerAllIpcHandlers } from './ipc'
 import { initDatabase } from './db'
 import { getDb } from './db'
 import { getAttachmentsDir } from './attachments'
+import { seedAgentsIfNeeded } from './agentStore'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -184,7 +185,7 @@ function buildAppMenu(): void {
   Menu.setApplicationMenu(Menu.buildFromTemplate(template))
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
   electronApp.setAppUserModelId('com.elrond.app')
 
   // Packaged builds get the icon from the bundle; dev runs need it set manually
@@ -199,6 +200,9 @@ app.whenReady().then(() => {
 
   buildAppMenu()
   initDatabase()
+  // Must run before the renderer loads: it reads agents on startup (keytar is
+  // async, so this can't live inside the synchronous DB migrations)
+  await seedAgentsIfNeeded()
   registerAttachmentProtocol()
   registerAllIpcHandlers()
   createWindow()

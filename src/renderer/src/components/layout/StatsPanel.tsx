@@ -1,9 +1,8 @@
 import React, { useEffect, useState } from 'react'
 import { useSessionStore } from '@renderer/stores/sessionStore'
-import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { effectiveSynthesizer, useAgentsStore } from '@renderer/stores/agentsStore'
 import { estimateCost, formatCost, formatTokens } from '@renderer/lib/utils'
 import { ArrowDown, ArrowUp, CheckCircle2, Clock, Flame, Scale, Zap } from 'lucide-react'
-import type { ProviderName } from '@shared/types'
 
 interface PhaseRow {
   key: string
@@ -55,7 +54,8 @@ export function StatsPanel(): React.JSX.Element {
     deliberationStartedAt,
     deliberationEndedAt
   } = useSessionStore()
-  const { providers, synthesizer } = useSettingsStore()
+  const { agents, synthesizerAgentId } = useAgentsStore()
+  const synthesizerAgent = effectiveSynthesizer({ agents, synthesizerAgentId })
 
   // Ticks the elapsed timer while a deliberation is running
   const [now, setNow] = useState(() => Date.now())
@@ -65,22 +65,22 @@ export function StatsPanel(): React.JSX.Element {
     return () => clearInterval(id)
   }, [isDeliberating])
 
-  const enabledProviders = providers.filter((p) => p.enabled)
+  const enabledAgents = agents.filter((a) => a.enabled)
   const inputFor = (phase: string, round: number): number =>
-    enabledProviders.reduce((sum, p) => sum + (callInputTokens[`${phase}:${round}:${p.name}`] ?? 0), 0)
+    enabledAgents.reduce((sum, a) => sum + (callInputTokens[`${phase}:${round}:${a.id}`] ?? 0), 0)
 
-  // Per-provider in/out accumulators for cost estimation
-  const perProvider: Record<string, { input: number; output: number }> = {}
-  const bump = (name: ProviderName, input: number, output: number): void => {
-    const acc = (perProvider[name] ??= { input: 0, output: 0 })
+  // Per-agent in/out accumulators for cost estimation
+  const perAgent: Record<string, { input: number; output: number }> = {}
+  const bump = (agentId: string, input: number, output: number): void => {
+    const acc = (perAgent[agentId] ??= { input: 0, output: 0 })
     acc.input += input
     acc.output += output
   }
 
   const rows: PhaseRow[] = []
 
-  const initialOut = enabledProviders.reduce(
-    (sum, p) => sum + estimateFromContent(agentStreams[p.name]?.content || ''),
+  const initialOut = enabledAgents.reduce(
+    (sum, a) => sum + estimateFromContent(agentStreams[a.id]?.content || ''),
     0
   )
   const hasTurn = deliberationStartedAt !== null
@@ -92,22 +92,22 @@ export function StatsPanel(): React.JSX.Element {
       output: initialOut,
       active: isDeliberating && currentPhase === 'initial'
     })
-    for (const p of enabledProviders) {
-      bump(p.name, callInputTokens[`initial:0:${p.name}`] ?? 0, estimateFromContent(agentStreams[p.name]?.content || ''))
+    for (const a of enabledAgents) {
+      bump(a.id, callInputTokens[`initial:0:${a.id}`] ?? 0, estimateFromContent(agentStreams[a.id]?.content || ''))
     }
 
     for (const round of debateRounds) {
       let roundIn = inputFor('debate', round.round)
       let roundOut = 0
-      for (const p of enabledProviders) {
-        const out = estimateFromContent(round.streams[p.name]?.content || '')
+      for (const a of enabledAgents) {
+        const out = estimateFromContent(round.streams[a.id]?.content || '')
         roundOut += out
-        bump(p.name, callInputTokens[`debate:${round.round}:${p.name}`] ?? 0, out)
+        bump(a.id, callInputTokens[`debate:${round.round}:${a.id}`] ?? 0, out)
       }
-      if (round.moderatorTokens) {
+      if (round.moderatorTokens && synthesizerAgent) {
         roundIn += round.moderatorTokens.input
         roundOut += round.moderatorTokens.output
-        bump(synthesizer, round.moderatorTokens.input, round.moderatorTokens.output)
+        bump(synthesizerAgent.id, round.moderatorTokens.input, round.moderatorTokens.output)
       }
       rows.push({
         key: `round-${round.round}`,
@@ -131,15 +131,15 @@ export function StatsPanel(): React.JSX.Element {
         output: synthOut,
         active: isDeliberating && currentPhase === 'synthesis'
       })
-      bump(synthesizer, synthIn, synthOut)
+      if (synthesizerAgent) bump(synthesizerAgent.id, synthIn, synthOut)
     }
   }
 
   const turnInput = rows.reduce((s, r) => s + r.input, 0)
   const turnOutput = rows.reduce((s, r) => s + r.output, 0)
-  const turnCost = Object.entries(perProvider).reduce((sum, [name, acc]) => {
-    const model = providers.find((p) => p.name === name)?.model || ''
-    return sum + estimateCost(model, acc.input, acc.output)
+  const turnCost = Object.entries(perAgent).reduce((sum, [agentId, acc]) => {
+    const agent = agents.find((a) => a.id === agentId)
+    return sum + estimateCost(agent?.model || '', acc.input, acc.output, agent?.provider)
   }, 0)
 
   const elapsed = deliberationStartedAt

@@ -4,7 +4,7 @@
 
 Elrond sends your prompt to multiple AI models simultaneously, has them debate each other across adaptive rounds with a moderator judging convergence, and synthesizes a final answer. Think of it as a council of AI advisors — each brings a different perspective, they critique each other's reasoning, and you get a consolidated result.
 
-All conversations stay on your machine. API keys live in your macOS Keychain. No cloud, no telemetry, no accounts.
+All conversations stay on your machine. API keys live in your macOS Keychain. No cloud, no telemetry, no accounts. With [Ollama](https://ollama.com), the entire council can run locally — no API keys at all.
 
 > Full documentation lives in [`docs/`](docs/) — see [features](docs/features.md), [architecture](docs/architecture.md), and [development](docs/development.md).
 
@@ -12,7 +12,9 @@ All conversations stay on your machine. API keys live in your macOS Keychain. No
 
 - **macOS 13 (Ventura)** or later
 - **Node.js 18+**
-- API keys for at least **two** of: OpenAI, Anthropic, Google
+- At least **two agents** to form a council, from any mix of:
+  - API keys for OpenAI, Anthropic, Google (cloud)
+  - Locally pulled [Ollama](https://ollama.com) models (fully local, keyless — e.g. `ollama pull llama3.2`)
 
 ## Install
 
@@ -33,9 +35,11 @@ make export       # packages Elrond.app into /Applications
 
 A setup wizard walks you through:
 
-1. **API Keys** — Enter and test keys for each provider (stored in macOS Keychain)
-2. **Model Selection** — Dropdowns populated live from each provider's API
+1. **API Keys** — Enter and test keys for each cloud provider (stored in macOS Keychain), or skip them entirely if a local Ollama server with pulled models is detected
+2. **Model Selection** — Dropdowns populated live from each provider's API; local-only setups get agents created from your pulled Ollama models automatically
 3. **Global Shortcut** — Set a keyboard shortcut to summon Elrond from anywhere (default: `Cmd+Shift+Space`)
+
+After setup, manage the council in the **Agents** dialog (bot icon in the sidebar): add or remove agents, assign any provider + model to each — including several local Ollama models debating each other — and pick which agent synthesizes the final answer.
 
 ## Getting API Keys
 

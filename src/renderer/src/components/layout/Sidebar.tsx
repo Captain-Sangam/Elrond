@@ -11,15 +11,17 @@ import {
   Star,
   Trash2,
   Settings,
-  GitBranch
+  GitBranch,
+  Bot
 } from 'lucide-react'
 
 interface SidebarProps {
   onSettingsClick: () => void
   onRepoClick: () => void
+  onAgentsClick: () => void
 }
 
-export function Sidebar({ onSettingsClick, onRepoClick }: SidebarProps): React.JSX.Element {
+export function Sidebar({ onSettingsClick, onRepoClick, onAgentsClick }: SidebarProps): React.JSX.Element {
   const { sessions, activeSessionId, setActiveSession, deleteSession, updateSession, searchSessions } =
     useSessionStore()
   const [searchQuery, setSearchQuery] = useState('')
@@ -79,6 +81,15 @@ export function Sidebar({ onSettingsClick, onRepoClick }: SidebarProps): React.J
           title="Code Session — ask questions about a GitHub repo"
         >
           <GitBranch className="h-4 w-4" />
+        </Button>
+        <Button
+          onClick={onAgentsClick}
+          className="titlebar-no-drag shrink-0"
+          variant="outline"
+          size="sm"
+          title="Agents — manage which models deliberate"
+        >
+          <Bot className="h-4 w-4" />
         </Button>
       </div>
 

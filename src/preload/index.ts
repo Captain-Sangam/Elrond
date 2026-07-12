@@ -18,6 +18,11 @@ const api: ElrondAPI = {
   deleteApiKey: (provider) => ipcRenderer.invoke('keys:delete', provider),
   testApiKey: (provider, key) => ipcRenderer.invoke('keys:test', provider, key),
   testWebSearchKey: (key) => ipcRenderer.invoke('websearch:test', key),
+  testOllamaConnection: (baseUrl) => ipcRenderer.invoke('ollama:test', baseUrl),
+
+  // Agents
+  getAgents: () => ipcRenderer.invoke('agents:list'),
+  saveAgents: (agents) => ipcRenderer.invoke('agents:save', agents),
 
   // Sessions
   getSessions: () => ipcRenderer.invoke('sessions:list'),
@@ -83,7 +88,7 @@ const api: ElrondAPI = {
   },
 
   // Models
-  listModels: (provider, apiKey) => ipcRenderer.invoke('models:list', provider, apiKey),
+  listModels: (provider, credential?) => ipcRenderer.invoke('models:list', provider, credential),
 
   // Export
   exportSession: (sessionId, format) => ipcRenderer.invoke('sessions:export', sessionId, format),

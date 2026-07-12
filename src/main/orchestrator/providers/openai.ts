@@ -29,10 +29,10 @@ export class OpenAIProvider implements AgentProvider {
   async *streamChat(
     messages: ChatMessage[],
     model: string,
-    apiKey: string,
+    credential: string,
     signal?: AbortSignal
   ): AsyncIterable<StreamChunk> {
-    const client = new OpenAI({ apiKey })
+    const client = new OpenAI({ apiKey: credential })
     const stream = await client.chat.completions.create(
       {
         model,
