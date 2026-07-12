@@ -5,7 +5,6 @@ import { AgentPanel } from './AgentPanel'
 import { DebatePanel, type DebateRoundView } from './DebatePanel'
 import { SynthesisPanel } from './SynthesisPanel'
 import { MessageInput } from './MessageInput'
-import { MarkdownContent } from './MarkdownContent'
 import { StatsPanel } from '@renderer/components/layout/StatsPanel'
 import type { Attachment, Message, ProviderName } from '@shared/types'
 import type { DebateVerdict } from '@renderer/stores/sessionStore'
@@ -250,7 +249,10 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                     <User className="h-4 w-4 text-primary" />
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5">
-                    <MarkdownContent content={turn.user.content} />
+                    {/* Plain text, not markdown — a user's newlines must render as typed */}
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {turn.user.content}
+                    </p>
                     <AttachmentStrip attachments={turn.user.attachments || []} />
                   </div>
                 </div>
@@ -295,7 +297,9 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                   <User className="h-4 w-4 text-primary" />
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
-                  <MarkdownContent content={currentPrompt} />
+                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                    {currentPrompt}
+                  </p>
                   {currentAttachments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {currentAttachments.map((a, i) =>
