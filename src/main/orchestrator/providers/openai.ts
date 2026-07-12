@@ -118,8 +118,10 @@ export class OpenAIProvider implements AgentProvider {
   }
 }
 
-const OPENAI_CHAT_PREFIXES = ['gpt-4', 'gpt-3.5', 'o1', 'o3', 'o4', 'chatgpt-']
-const OPENAI_EXCLUDE = ['instruct', 'vision', 'realtime', 'audio', 'search']
+const OPENAI_CHAT_PREFIXES = ['gpt-5', 'gpt-4', 'gpt-3.5', 'o1', 'o3', 'o4', 'chatgpt-']
+// Excludes models that don't speak the chat-completions API: media models
+// (image/audio/tts/transcribe), and responses-API-only variants (codex, -pro)
+const OPENAI_EXCLUDE = ['instruct', 'vision', 'realtime', 'audio', 'search', 'image', 'codex', '-pro', 'transcribe', 'tts']
 
 export async function listOpenAIModels(apiKey: string): Promise<string[]> {
   const client = new OpenAI({ apiKey })
