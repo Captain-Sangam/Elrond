@@ -235,6 +235,12 @@ export interface MCPServerInput {
   secrets?: Record<string, string>
 }
 
+// App-lifetime stats across all sessions (channel 'stats:lifetime')
+export interface LifetimeStats {
+  turns: number
+  tokensGenerated: number
+}
+
 export interface DeliberationRequest {
   sessionId: string
   prompt: string
@@ -269,6 +275,7 @@ export interface ElrondAPI {
   updateSession: (id: string, updates: Partial<Pick<Session, 'title' | 'starred'>>) => Promise<void>
   deleteSession: (id: string) => Promise<void>
   searchSessions: (query: string) => Promise<Session[]>
+  getLifetimeStats: () => Promise<LifetimeStats>
 
   // Messages
   getMessages: (sessionId: string) => Promise<Message[]>
