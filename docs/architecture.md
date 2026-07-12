@@ -25,7 +25,7 @@ You → Prompt → [OpenAI, Anthropic, Google]
 src/
   main/                     Electron main process
     attachments.ts          Image/PDF storage, validation, base64 loading
-    websearch.ts            Brave Search API client + result formatting
+    websearch.ts            Tavily web-search client + result formatting
     db/                     SQLite (sessions, messages, attachments, settings, repos, FTS5)
     github/                 GitHub service (API client, cloning, indexing, tools)
       index.ts              Repo listing, cloning, file walking, code indexing
@@ -58,7 +58,7 @@ src/
 | Database    | SQLite via better-sqlite3, FTS5 for search             |
 | Key Storage | macOS Keychain via keytar                              |
 | AI SDKs     | openai, @anthropic-ai/sdk, @google/generative-ai       |
-| Web Search  | Brave Search API                                       |
+| Web Search  | Tavily API                                             |
 | Markdown    | react-markdown + remark-gfm + react-syntax-highlighter |
 | Build       | electron-vite + electron-builder                       |
 
@@ -77,6 +77,6 @@ Agents have no function-calling loop — the orchestrator pre-fetches context be
 
 - **GitHub tools** (keyword-triggered when a repo is in scope): pull requests (with diffs/reviews), commits, issues, branches, contributors, repo overview
 - **Indexed code search**: FTS5 over locally cloned repo files (index repos in Settings → GitHub or inline from the chat repo selector)
-- **Web search** (globe toggle): top Brave Search results with cite-your-sources instructions
+- **Web search** (globe toggle): top Tavily results (LLM-ready page content) with cite-your-sources instructions
 
 A repo enters scope via the `/github` selector, the session's attached repo, or auto-detection of `owner/repo` patterns in the prompt.

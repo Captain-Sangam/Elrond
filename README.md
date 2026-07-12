@@ -45,9 +45,9 @@ A setup wizard walks you through:
 | Anthropic | [console.anthropic.com/settings/keys](https://console.anthropic.com/settings/keys) | Requires a funded API account |
 | Google | [aistudio.google.com/apikey](https://aistudio.google.com/apikey) | Free tier available |
 | GitHub (optional) | [github.com/settings/tokens](https://github.com/settings/tokens/new?scopes=repo&description=Elrond) | "Generate new token (classic)" with the `repo` scope — required to list, clone and index private repos. Configure in Settings → GitHub |
-| Brave Search (optional) | [api-dashboard.search.brave.com](https://api-dashboard.search.brave.com/register) | Sign up, subscribe to the **Free** plan (~2,000 queries/month; card required but not charged), copy the key from "API Keys". Configure in Settings → Web Search |
+| Tavily (optional) | [app.tavily.com](https://app.tavily.com) | Free tier: 1,000 searches/month, no credit card required. Copy the key from the dashboard. Configure in Settings → Web Search |
 
-GitHub and Brave keys are only needed for the `/github` integration and the web-search globe toggle respectively — the core deliberation works without them.
+GitHub and Tavily keys are only needed for the `/github` integration and the web-search globe toggle respectively — the core deliberation works without them.
 
 ## License
 

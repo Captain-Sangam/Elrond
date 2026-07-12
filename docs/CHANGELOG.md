@@ -10,7 +10,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 **Web Search**
 
-- Globe toggle in the message input arms a one-shot web search for that message (Brave Search API, key stored in Keychain, configured in Settings → Web Search)
+- Globe toggle in the message input arms a one-shot web search for that message (Tavily search API — free tier, no card — key stored in Keychain, configured in Settings → Web Search)
 - Top results are injected into the agents' context with cite-your-sources instructions; failures surface as a non-fatal notice and the deliberation continues
 
 **GitHub UX**

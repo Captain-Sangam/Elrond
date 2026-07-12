@@ -1,8 +1,8 @@
 import { ipcMain } from 'electron'
-import { testBraveKey } from '../websearch'
+import { testWebSearchKey } from '../websearch'
 
 export function registerWebSearchHandlers(): void {
   ipcMain.handle('websearch:test', async (_, key: string) => {
-    return testBraveKey(key)
+    return testWebSearchKey(key)
   })
 }

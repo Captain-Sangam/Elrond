@@ -50,8 +50,8 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
   const [githubToken, setGithubToken] = useState('')
   const [githubStatus, setGithubStatus] = useState<KeyTestStatus>('idle')
   const [githubOrg, setGithubOrg] = useState('')
-  const [braveKey, setBraveKey] = useState('')
-  const [braveStatus, setBraveStatus] = useState<KeyTestStatus>('idle')
+  const [tavilyKey, setTavilyKey] = useState('')
+  const [tavilyStatus, setTavilyStatus] = useState<KeyTestStatus>('idle')
   const [availableModels, setAvailableModels] = useState<Record<ProviderName, string[]>>({
     openai: [],
     anthropic: [],
@@ -87,10 +87,10 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
       window.elrond.getSetting('githubOrg').then((val) => {
         if (val) setGithubOrg(val)
       })
-      window.elrond.getApiKey('brave').then((key) => {
+      window.elrond.getApiKey('tavily').then((key) => {
         if (key) {
-          setBraveKey('••••••••' + key.slice(-4))
-          setBraveStatus('valid')
+          setTavilyKey('••••••••' + key.slice(-4))
+          setTavilyStatus('valid')
         }
       })
     }
@@ -108,17 +108,17 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
     }
   }, [githubToken])
 
-  const handleTestBraveKey = useCallback(async () => {
-    if (!braveKey || braveKey.startsWith('••')) return
-    setBraveStatus('testing')
-    const valid = await window.elrond.testWebSearchKey(braveKey)
+  const handleTestTavilyKey = useCallback(async () => {
+    if (!tavilyKey || tavilyKey.startsWith('••')) return
+    setTavilyStatus('testing')
+    const valid = await window.elrond.testWebSearchKey(tavilyKey)
     if (valid) {
-      await window.elrond.setApiKey('brave', braveKey)
-      setBraveStatus('valid')
+      await window.elrond.setApiKey('tavily', tavilyKey)
+      setTavilyStatus('valid')
     } else {
-      setBraveStatus('invalid')
+      setTavilyStatus('invalid')
     }
-  }, [braveKey])
+  }, [tavilyKey])
 
   const handleTestKey = useCallback(async (provider: ProviderName, key: string) => {
     if (!key || key.startsWith('••')) return
@@ -429,7 +429,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
               <div className="flex items-center gap-2">
                 <Globe className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">Web Search</h3>
-                {braveStatus === 'valid' && (
+                {tavilyStatus === 'valid' && (
                   <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
                     Connected
                   </Badge>
@@ -440,39 +440,38 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 the top results are injected into their context for that message.
               </p>
               <div className="space-y-1">
-                <label className="text-xs text-muted-foreground">Brave Search API Key</label>
+                <label className="text-xs text-muted-foreground">Tavily API Key</label>
                 <div className="flex gap-2">
                   <Input
                     type="password"
-                    value={braveKey}
-                    onChange={(e) => setBraveKey(e.target.value)}
-                    placeholder="BSA..."
+                    value={tavilyKey}
+                    onChange={(e) => setTavilyKey(e.target.value)}
+                    placeholder="tvly-..."
                     className="h-8 text-xs"
                   />
                   <Button
                     variant="outline"
                     size="sm"
                     className="h-8 gap-1"
-                    onClick={handleTestBraveKey}
-                    disabled={!braveKey || braveKey.startsWith('••')}
+                    onClick={handleTestTavilyKey}
+                    disabled={!tavilyKey || tavilyKey.startsWith('••')}
                   >
-                    {statusIcon(braveStatus, <Globe className="h-3 w-3" />)}
+                    {statusIcon(tavilyStatus, <Globe className="h-3 w-3" />)}
                     Test
                   </Button>
                 </div>
                 <p className="text-[10px] text-muted-foreground">
-                  Sign up at{' '}
+                  Sign up free at{' '}
                   <a
-                    href="https://api-dashboard.search.brave.com/register"
+                    href="https://app.tavily.com"
                     target="_blank"
                     rel="noopener noreferrer"
                     className="text-primary underline decoration-primary/30 underline-offset-2"
                   >
-                    api-dashboard.search.brave.com
-                  </a>
-                  , subscribe to the <span className="font-mono">Free</span> plan (~2,000
-                  queries/month, card required but not charged), then copy the key from the "API
-                  Keys" page. Each armed message uses one query.
+                    app.tavily.com
+                  </a>{' '}
+                  — 1,000 searches/month, no credit card required. Copy the key from the dashboard.
+                  Each armed message uses one search.
                 </p>
               </div>
             </section>

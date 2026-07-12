@@ -66,8 +66,8 @@ export interface Setting {
 
 export type ProviderName = 'openai' | 'anthropic' | 'google'
 
-// Keychain identifiers: the three LLM providers plus the Brave Search key
-export type KeyProvider = ProviderName | 'brave'
+// Keychain identifiers: the three LLM providers plus the Tavily web-search key
+export type KeyProvider = ProviderName | 'tavily'
 
 export interface ProviderConfig {
   name: ProviderName

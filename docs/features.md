@@ -41,7 +41,7 @@
 ## Web Search
 
 - Globe toggle in the message input arms a live web search for that message
-- Powered by the Brave Search API (free tier; key stored in macOS Keychain)
+- Powered by the Tavily search API (free tier: 1,000 searches/month, no card; key stored in macOS Keychain)
 - Top results are injected into the agents' context with instructions to cite sources
 - Failures are non-fatal — the deliberation continues with a small notice
 
@@ -67,7 +67,7 @@
 - Custom system prompt for all agents
 - Submit key preference (Cmd+Enter or Enter)
 - GitHub token, organizations, and full repo index management
-- Brave Search API key for web search
+- Tavily API key for web search
 - Danger zone: clear history, reset keys
 
 ## Cost Awareness
