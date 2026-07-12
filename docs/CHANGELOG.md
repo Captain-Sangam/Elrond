@@ -4,6 +4,33 @@ All notable changes to Elrond will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [0.3.0] - 2026-07-12
+
+### Added
+
+**Web Search**
+
+- Globe toggle in the message input arms a one-shot web search for that message (Brave Search API, key stored in Keychain, configured in Settings → Web Search)
+- Top results are injected into the agents' context with cite-your-sources instructions; failures surface as a non-fatal notice and the deliberation continues
+
+**GitHub UX**
+
+- Tabbed Settings dialog (General / Providers / GitHub / Web Search)
+- Repo management in the GitHub tab: searchable repo list with Index / Reindex / Remove, file counts and indexed-ago timestamps
+- Slash-command autocomplete: typing `/` shows a popup describing `/github` with Tab/Enter completion
+- Indexed-status badges in the chat repo selector; selecting an unindexed repo shows an amber chip with an inline "Index now" action and live progress — sending is never blocked
+- Indexing reports progress stages (cloning → scanning → storing) everywhere it can be triggered
+
+### Changed
+
+- Documentation restructured: README is user setup only, `CLAUDE.md` is an index, and all other docs (features, architecture, development, changelog, community files) live under `docs/`
+
+### Fixed
+
+- Indexing no longer freezes the app: `git clone`/`git pull` run asynchronously (previously `execSync` blocked the main process for up to two minutes)
+- Reindexing a repo no longer breaks existing sessions bound to it (the index row's id is now preserved)
+- Freshly indexed repos no longer show "Invalid Date" timestamps in renderer state
+
 ## [0.2.0] - 2026-07-12
 
 ### Added
