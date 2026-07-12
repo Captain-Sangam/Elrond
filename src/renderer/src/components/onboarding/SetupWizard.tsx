@@ -31,7 +31,7 @@ export function SetupWizard(): React.JSX.Element {
   const [models, setModels] = useState<Record<ProviderName, string>>({
     openai: 'gpt-4o',
     anthropic: 'claude-sonnet-4-5-20250514',
-    google: 'gemini-1.5-pro'
+    google: 'gemini-pro-latest'
   })
   const [shortcutDisplay, setShortcutDisplay] = useState('⌘ + Shift + Space')
   const [availableModels, setAvailableModels] = useState<Record<ProviderName, string[]>>({

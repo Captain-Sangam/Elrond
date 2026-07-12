@@ -20,7 +20,7 @@ interface SidebarProps {
 }
 
 export function Sidebar({ onSettingsClick, onRepoClick }: SidebarProps): React.JSX.Element {
-  const { sessions, activeSessionId, setActiveSession, createSession, deleteSession, updateSession, searchSessions } =
+  const { sessions, activeSessionId, setActiveSession, deleteSession, updateSession, searchSessions } =
     useSessionStore()
   const [searchQuery, setSearchQuery] = useState('')
   const [hoveredId, setHoveredId] = useState<string | null>(null)
@@ -34,8 +34,10 @@ export function Sidebar({ onSettingsClick, onRepoClick }: SidebarProps): React.J
   )
 
   const handleNewChat = useCallback(async () => {
-    await createSession()
-  }, [createSession])
+    // Show the draft view; the session row is created when the first message is sent
+    if (activeSessionId === null) return
+    await setActiveSession(null)
+  }, [activeSessionId, setActiveSession])
 
   const handleDelete = useCallback(
     async (e: React.MouseEvent, id: string) => {

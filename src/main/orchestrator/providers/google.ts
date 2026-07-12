@@ -1,5 +1,14 @@
-import { GoogleGenerativeAI } from '@google/generative-ai'
-import type { AgentProvider, ChatMessage, StreamChunk } from './types'
+import { GoogleGenerativeAI, type Part } from '@google/generative-ai'
+import { contentToText, type AgentProvider, type ChatMessage, type ContentPart, type StreamChunk } from './types'
+
+function toGoogleParts(content: string | ContentPart[]): Part[] {
+  if (typeof content === 'string') return [{ text: content }]
+  return content.map((part) =>
+    part.type === 'text'
+      ? { text: part.text }
+      : { inlineData: { mimeType: part.mimeType, data: part.data } }
+  )
+}
 
 export class GoogleProvider implements AgentProvider {
   readonly name = 'google'
@@ -18,17 +27,19 @@ export class GoogleProvider implements AgentProvider {
 
     const history = chatMessages.slice(0, -1).map((m) => ({
       role: m.role === 'assistant' ? 'model' : 'user',
-      parts: [{ text: m.content }]
+      parts: toGoogleParts(m.content)
     }))
 
     const lastMessage = chatMessages[chatMessages.length - 1]
 
     const chat = genModel.startChat({
       history,
-      systemInstruction: systemMessage ? { role: 'user', parts: [{ text: systemMessage.content }] } : undefined
+      systemInstruction: systemMessage
+        ? { role: 'user', parts: [{ text: contentToText(systemMessage.content) }] }
+        : undefined
     })
 
-    const result = await chat.sendMessageStream(lastMessage.content)
+    const result = await chat.sendMessageStream(toGoogleParts(lastMessage.content))
 
     for await (const chunk of result.stream) {
       const text = chunk.text()
@@ -65,7 +76,8 @@ export async function listGoogleModels(apiKey: string): Promise<string[]> {
 export async function testGoogleKey(apiKey: string): Promise<boolean> {
   try {
     const genAI = new GoogleGenerativeAI(apiKey)
-    const model = genAI.getGenerativeModel({ model: 'gemini-2.0-flash' })
+    // Rolling alias — hardcoded model ids here go stale when Google retires them
+    const model = genAI.getGenerativeModel({ model: 'gemini-flash-latest' })
     await model.generateContent('hi')
     return true
   } catch (err: unknown) {

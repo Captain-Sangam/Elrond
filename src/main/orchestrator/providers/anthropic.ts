@@ -1,5 +1,32 @@
 import Anthropic from '@anthropic-ai/sdk'
-import type { AgentProvider, ChatMessage, StreamChunk } from './types'
+import { contentToText, type AgentProvider, type ChatMessage, type ContentPart, type StreamChunk } from './types'
+
+function toAnthropicBlock(part: ContentPart): Anthropic.Messages.ContentBlockParam {
+  switch (part.type) {
+    case 'text':
+      return { type: 'text', text: part.text }
+    case 'image':
+      return {
+        type: 'image',
+        source: {
+          type: 'base64',
+          media_type: part.mimeType as Anthropic.Messages.Base64ImageSource['media_type'],
+          data: part.data
+        }
+      }
+    case 'file':
+      return {
+        type: 'document',
+        source: { type: 'base64', media_type: 'application/pdf', data: part.data },
+        title: part.fileName
+      }
+  }
+}
+
+function toAnthropicContent(content: string | ContentPart[]): string | Anthropic.Messages.ContentBlockParam[] {
+  if (typeof content === 'string') return content
+  return content.map(toAnthropicBlock)
+}
 
 export class AnthropicProvider implements AgentProvider {
   readonly name = 'anthropic'
@@ -17,14 +44,14 @@ export class AnthropicProvider implements AgentProvider {
       .filter((m) => m.role !== 'system')
       .map((m) => ({
         role: m.role as 'user' | 'assistant',
-        content: m.content
+        content: toAnthropicContent(m.content)
       }))
 
     const stream = client.messages.stream(
       {
         model,
         max_tokens: 4096,
-        system: systemMessage?.content || undefined,
+        system: systemMessage ? contentToText(systemMessage.content) : undefined,
         messages: chatMessages
       },
       { signal }

@@ -11,8 +11,14 @@ import { TooltipProvider } from './components/ui/tooltip'
 
 export default function App(): React.JSX.Element {
   const { loaded, setupComplete, loadSettings } = useSettingsStore()
-  const { loadSessions, handleStreamToken, handleStreamDone, handleStreamError, handlePhaseChange } =
-    useSessionStore()
+  const {
+    loadSessions,
+    handleStreamToken,
+    handleStreamDone,
+    handleStreamError,
+    handlePhaseChange,
+    handleModeratorVerdict
+  } = useSessionStore()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [repoPickerOpen, setRepoPickerOpen] = useState(false)
 
@@ -26,14 +32,16 @@ export default function App(): React.JSX.Element {
     const unsubDone = window.elrond.onStreamDone(handleStreamDone)
     const unsubError = window.elrond.onStreamError(handleStreamError)
     const unsubPhase = window.elrond.onPhaseChange(handlePhaseChange)
+    const unsubModerator = window.elrond.onModeratorVerdict(handleModeratorVerdict)
 
     return () => {
       unsubToken()
       unsubDone()
       unsubError()
       unsubPhase()
+      unsubModerator()
     }
-  }, [handleStreamToken, handleStreamDone, handleStreamError, handlePhaseChange])
+  }, [handleStreamToken, handleStreamDone, handleStreamError, handlePhaseChange, handleModeratorVerdict])
 
   if (!loaded) {
     return (

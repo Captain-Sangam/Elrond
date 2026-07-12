@@ -1,5 +1,6 @@
 import { ipcMain } from 'electron'
 import { getDb } from '../db'
+import { deleteAttachmentFiles, loadAttachmentsForMessages } from '../attachments'
 import { v4 as uuidv4 } from 'uuid'
 import type { Session, Message } from '../../shared/types'
 
@@ -43,6 +44,10 @@ export function registerSessionsHandlers(): void {
 
   ipcMain.handle('sessions:delete', (_, id: string) => {
     const db = getDb()
+    deleteAttachmentFiles(id)
+    db.prepare(
+      'DELETE FROM attachments WHERE message_id IN (SELECT id FROM messages WHERE session_id = ?)'
+    ).run(id)
     db.prepare('DELETE FROM messages WHERE session_id = ?').run(id)
     db.prepare('DELETE FROM sessions WHERE id = ?').run(id)
   })
@@ -63,17 +68,34 @@ export function registerSessionsHandlers(): void {
 
   ipcMain.handle('messages:list', (_, sessionId: string) => {
     const db = getDb()
-    return db
+    const messages = db
       .prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC')
       .all(sessionId) as Message[]
+
+    const attachments = loadAttachmentsForMessages(
+      messages.filter((m) => m.role === 'user').map((m) => m.id)
+    )
+    for (const msg of messages) {
+      const list = attachments.get(msg.id)
+      if (list) msg.attachments = list
+    }
+    return messages
   })
 
   ipcMain.handle('messages:add', (_, message: Omit<Message, 'id' | 'created_at'>) => {
     const db = getDb()
     const id = uuidv4()
     db.prepare(
-      'INSERT INTO messages (id, session_id, role, agent_name, content, token_count) VALUES (?, ?, ?, ?, ?, ?)'
-    ).run(id, message.session_id, message.role, message.agent_name, message.content, message.token_count)
+      'INSERT INTO messages (id, session_id, role, agent_name, content, token_count, round) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    ).run(
+      id,
+      message.session_id,
+      message.role,
+      message.agent_name,
+      message.content,
+      message.token_count,
+      message.round ?? 0
+    )
     return db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as Message
   })
 
@@ -90,7 +112,15 @@ export function registerSessionsHandlers(): void {
         .prepare('SELECT * FROM messages WHERE session_id = ? ORDER BY created_at ASC')
         .all(sessionId) as Message[]
 
+      const exportAttachments = loadAttachmentsForMessages(
+        messages.filter((m) => m.role === 'user').map((m) => m.id)
+      )
+
       if (format === 'json') {
+        for (const msg of messages) {
+          const list = exportAttachments.get(msg.id)
+          if (list) msg.attachments = list
+        }
         return JSON.stringify({ session, messages }, null, 2)
       }
 
@@ -104,10 +134,17 @@ export function registerSessionsHandlers(): void {
             : msg.role === 'synthesis'
               ? 'Synthesis'
               : msg.role === 'debate'
-                ? `${msg.agent_name} (Debate)`
-                : msg.agent_name || 'Agent'
+                ? `${msg.agent_name} (Debate Round ${msg.round || 1})`
+                : msg.role === 'moderator'
+                  ? `Moderator (Round ${msg.round || 1})`
+                  : msg.agent_name || 'Agent'
 
-        md += `### ${label}\n\n${msg.content}\n\n---\n\n`
+        md += `### ${label}\n\n${msg.content}\n\n`
+        const list = exportAttachments.get(msg.id)
+        if (list && list.length > 0) {
+          md += `*Attachments: ${list.map((a) => a.file_name).join(', ')}*\n\n`
+        }
+        md += `---\n\n`
       }
 
       return md

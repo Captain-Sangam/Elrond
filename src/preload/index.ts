@@ -1,5 +1,12 @@
 import { contextBridge, ipcRenderer } from 'electron'
-import type { ElrondAPI, ProviderName, Session, StreamToken, StreamDone } from '../shared/types'
+import type {
+  ElrondAPI,
+  ModeratorVerdictEvent,
+  PhaseChange,
+  StreamDone,
+  StreamError,
+  StreamToken
+} from '../shared/types'
 
 const api: ElrondAPI = {
   // Keychain
@@ -41,16 +48,19 @@ const api: ElrondAPI = {
     return () => ipcRenderer.removeListener('stream:done', handler)
   },
   onStreamError: (callback) => {
-    const handler = (_: Electron.IpcRendererEvent, error: { provider: ProviderName; message: string }) =>
-      callback(error)
+    const handler = (_: Electron.IpcRendererEvent, error: StreamError) => callback(error)
     ipcRenderer.on('stream:error', handler)
     return () => ipcRenderer.removeListener('stream:error', handler)
   },
   onPhaseChange: (callback) => {
-    const handler = (_: Electron.IpcRendererEvent, phase: { phase: string; provider?: ProviderName }) =>
-      callback(phase)
+    const handler = (_: Electron.IpcRendererEvent, phase: PhaseChange) => callback(phase)
     ipcRenderer.on('stream:phase', handler)
     return () => ipcRenderer.removeListener('stream:phase', handler)
+  },
+  onModeratorVerdict: (callback) => {
+    const handler = (_: Electron.IpcRendererEvent, verdict: ModeratorVerdictEvent) => callback(verdict)
+    ipcRenderer.on('stream:moderator', handler)
+    return () => ipcRenderer.removeListener('stream:moderator', handler)
   },
 
   // Models

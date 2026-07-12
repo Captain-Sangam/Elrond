@@ -6,6 +6,7 @@ interface SettingsState {
   providers: ProviderConfig[]
   synthesizer: ProviderName
   enableDebate: boolean
+  maxDebateRounds: number
   globalShortcut: string
   submitKey: 'Enter' | 'CmdEnter'
   systemPrompt: string
@@ -21,10 +22,11 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   providers: [
     { name: 'openai', label: 'OpenAI', model: 'gpt-4o', enabled: true },
     { name: 'anthropic', label: 'Anthropic', model: 'claude-sonnet-4-5-20250514', enabled: true },
-    { name: 'google', label: 'Google', model: 'gemini-1.5-pro', enabled: true }
+    { name: 'google', label: 'Google', model: 'gemini-pro-latest', enabled: true }
   ],
   synthesizer: 'anthropic',
   enableDebate: true,
+  maxDebateRounds: 3,
   globalShortcut: 'CommandOrControl+Shift+Space',
   submitKey: 'CmdEnter',
   systemPrompt: '',
@@ -43,6 +45,7 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
       providers,
       synthesizer: (settings.synthesizer as ProviderName) || 'anthropic',
       enableDebate: settings.enableDebate !== 'false',
+      maxDebateRounds: parseInt(settings.maxDebateRounds || '3', 10) || 3,
       globalShortcut: settings.globalShortcut || 'CommandOrControl+Shift+Space',
       submitKey: (settings.submitKey as 'Enter' | 'CmdEnter') || 'CmdEnter',
       systemPrompt: settings.systemPrompt || '',
@@ -62,6 +65,9 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         break
       case 'enableDebate':
         set({ enableDebate: value === 'true' })
+        break
+      case 'maxDebateRounds':
+        set({ maxDebateRounds: parseInt(value, 10) || 3 })
         break
       case 'globalShortcut':
         set({ globalShortcut: value })

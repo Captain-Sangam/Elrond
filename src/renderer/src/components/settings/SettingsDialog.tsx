@@ -25,6 +25,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
     providers,
     synthesizer,
     enableDebate,
+    maxDebateRounds,
     submitKey,
     systemPrompt,
     setSetting
@@ -284,21 +285,49 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
             </Select>
           </section>
 
-          {/* Debate Toggle */}
-          <section className="flex items-center justify-between">
-            <div>
-              <h3 className="text-sm font-medium">Debate Round</h3>
-              <p className="text-xs text-muted-foreground">
-                Agents critique each other before synthesis
-              </p>
+          {/* Debate */}
+          <section className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="text-sm font-medium">Debate</h3>
+                <p className="text-xs text-muted-foreground">
+                  Agents critique each other and revise their answers before synthesis
+                </p>
+              </div>
+              <Button
+                variant={enableDebate ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setSetting('enableDebate', enableDebate ? 'false' : 'true')}
+              >
+                {enableDebate ? 'Enabled' : 'Disabled'}
+              </Button>
             </div>
-            <Button
-              variant={enableDebate ? 'default' : 'outline'}
-              size="sm"
-              onClick={() => setSetting('enableDebate', enableDebate ? 'false' : 'true')}
-            >
-              {enableDebate ? 'Enabled' : 'Disabled'}
-            </Button>
+            {enableDebate && (
+              <div className="flex items-center justify-between">
+                <div>
+                  <h4 className="text-xs font-medium">Max debate rounds</h4>
+                  <p className="text-[10px] text-muted-foreground">
+                    A moderator ends the debate early once agents agree. Each round makes one
+                    call per agent plus a moderator check.
+                  </p>
+                </div>
+                <Select
+                  value={String(maxDebateRounds)}
+                  onValueChange={(v) => setSetting('maxDebateRounds', v)}
+                >
+                  <SelectTrigger className="h-8 w-20 text-xs">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {[1, 2, 3, 4, 5].map((n) => (
+                      <SelectItem key={n} value={String(n)}>
+                        {n}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </section>
 
           {/* Submit Key */}
