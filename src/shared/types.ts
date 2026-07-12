@@ -34,7 +34,11 @@ export interface Message {
   id: string
   session_id: string
   role: MessageRole
+  // Agent display name. Rows written before agents were decoupled from
+  // providers hold a provider name here instead.
   agent_name: string | null
+  agent_id: string | null
+  provider: ProviderName | null
   content: string
   token_count: number | null
   round: number
@@ -64,29 +68,30 @@ export interface Setting {
   value: string
 }
 
-export type ProviderName = 'openai' | 'anthropic' | 'google'
+export type ProviderName = 'openai' | 'anthropic' | 'google' | 'ollama'
 
-// Keychain identifiers: the three LLM providers plus the Tavily web-search key
-export type KeyProvider = ProviderName | 'tavily'
+// Keychain identifiers: the cloud LLM providers plus the Tavily web-search
+// key. Ollama is deliberately absent — it's local and keyless.
+export type KeyProvider = 'openai' | 'anthropic' | 'google' | 'tavily'
 
-export interface ProviderConfig {
-  name: ProviderName
-  label: string
+// A named deliberation slot. Agents are decoupled from providers: several
+// agents may share a provider (e.g. two different Ollama models debating).
+export interface AgentConfig {
+  id: string
+  name: string
+  provider: ProviderName
   model: string
   enabled: boolean
-}
-
-export interface AgentResponse {
-  provider: ProviderName
-  content: string
-  tokenCount: number
 }
 
 export type StreamPhase = 'initial' | 'debate' | 'synthesis'
 
 // Emitted when a provider call begins, with the estimated prompt size —
-// lets the UI show input tokens before any output streams back
+// lets the UI show input tokens before any output streams back.
+// `provider` is kept on stream events for coloring only; identity is agentId.
 export interface StreamStart {
+  agentId: string
+  agentName: string
   provider: ProviderName
   phase: StreamPhase
   round?: number
@@ -94,6 +99,8 @@ export interface StreamStart {
 }
 
 export interface StreamToken {
+  agentId: string
+  agentName: string
   provider: ProviderName
   delta: string
   phase: StreamPhase
@@ -101,6 +108,8 @@ export interface StreamToken {
 }
 
 export interface StreamDone {
+  agentId: string
+  agentName: string
   provider: ProviderName
   fullContent: string
   tokenCount: number
@@ -109,6 +118,8 @@ export interface StreamDone {
 }
 
 export interface StreamError {
+  agentId: string
+  agentName: string
   provider: ProviderName
   message: string
   phase?: StreamPhase
@@ -152,10 +163,10 @@ export interface ModeratorVerdictEvent {
 export interface DeliberationRequest {
   sessionId: string
   prompt: string
-  providers: ProviderConfig[]
+  agents: AgentConfig[]
   enableDebate: boolean
   maxDebateRounds: number
-  synthesizer: ProviderName
+  synthesizerAgentId: string
   systemPrompt?: string
   repoId?: string
   repoFullName?: string
@@ -170,6 +181,11 @@ export interface ElrondAPI {
   deleteApiKey: (provider: KeyProvider) => Promise<void>
   testApiKey: (provider: ProviderName, key: string) => Promise<boolean>
   testWebSearchKey: (key: string) => Promise<boolean>
+  testOllamaConnection: (baseUrl: string) => Promise<boolean>
+
+  // Agents
+  getAgents: () => Promise<AgentConfig[]>
+  saveAgents: (agents: AgentConfig[]) => Promise<void>
 
   // Sessions
   getSessions: () => Promise<Session[]>
@@ -202,8 +218,9 @@ export interface ElrondAPI {
   onNotice: (callback: (notice: DeliberationNotice) => void) => () => void
   onIndexProgress: (callback: (progress: IndexProgressEvent) => void) => () => void
 
-  // Models
-  listModels: (provider: ProviderName, apiKey: string) => Promise<string[]>
+  // Models — credential is the API key for cloud providers, or an optional
+  // base-URL override for ollama (defaults to the stored ollama_base_url)
+  listModels: (provider: ProviderName, credential?: string) => Promise<string[]>
 
   // Export
   exportSession: (sessionId: string, format: 'markdown' | 'json') => Promise<string>

@@ -1,10 +1,11 @@
 import { BrowserWindow } from 'electron'
-import type { ProviderName, ProviderConfig, DeliberationRequest } from '../../shared/types'
+import type { AgentConfig, ProviderName, DeliberationRequest } from '../../shared/types'
 import type { AgentProvider, ChatMessage, ContentPart } from './providers/types'
 import { loadAttachmentsForMessages, readAttachmentBase64, saveAttachments } from '../attachments'
 import { OpenAIProvider } from './providers/openai'
 import { AnthropicProvider } from './providers/anthropic'
 import { GoogleProvider } from './providers/google'
+import { OllamaProvider } from './providers/ollama'
 import {
   getDebateRoundPrompt,
   getModeratorPrompt,
@@ -14,6 +15,7 @@ import {
   type ModeratorVerdict
 } from './prompts'
 import { getApiKey } from '../keychain'
+import { getOllamaBaseUrl } from '../agentStore'
 import { getDb } from '../db'
 import { getRepoContext } from '../github'
 import { formatWebResults, searchWeb } from '../websearch'
@@ -23,13 +25,8 @@ import { v4 as uuidv4 } from 'uuid'
 const providers: Record<ProviderName, AgentProvider> = {
   openai: new OpenAIProvider(),
   anthropic: new AnthropicProvider(),
-  google: new GoogleProvider()
-}
-
-const PROVIDER_LABELS: Record<ProviderName, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google'
+  google: new GoogleProvider(),
+  ollama: new OllamaProvider()
 }
 
 let currentAbortController: AbortController | null = null
@@ -107,29 +104,38 @@ function attachmentToPart(fileName: string, mimeType: string, data: string): Con
     : { type: 'file', mimeType, data, fileName }
 }
 
-async function streamProvider(
-  provider: AgentProvider,
+// Cloud providers authenticate from the keychain; ollama is keyless and gets
+// its server base URL instead
+async function resolveCredential(providerName: ProviderName): Promise<string> {
+  if (providerName === 'ollama') {
+    return getOllamaBaseUrl()
+  }
+  const apiKey = await getApiKey(providerName)
+  if (!apiKey) {
+    throw new Error(`No API key configured for ${providerName}`)
+  }
+  return apiKey
+}
+
+async function streamAgent(
+  agent: AgentConfig,
   messages: ChatMessage[],
-  model: string,
-  providerName: ProviderName,
   phase: 'initial' | 'debate' | 'synthesis',
   signal: AbortSignal,
   round?: number
 ): Promise<{ content: string; tokenCount: number }> {
   let fullContent = ''
 
-  const apiKey = await getApiKey(providerName)
-  if (!apiKey) {
-    throw new Error(`No API key configured for ${providerName}`)
-  }
+  const credential = await resolveCredential(agent.provider)
+  const ident = { agentId: agent.id, agentName: agent.name, provider: agent.provider }
 
-  send('stream:start', { provider: providerName, phase, round, inputTokens: estimateMessagesTokens(messages) })
+  send('stream:start', { ...ident, phase, round, inputTokens: estimateMessagesTokens(messages) })
 
   try {
-    for await (const chunk of provider.streamChat(messages, model, apiKey, signal)) {
+    for await (const chunk of providers[agent.provider].streamChat(messages, agent.model, credential, signal)) {
       if (signal.aborted) break
       fullContent += chunk.delta
-      send('stream:token', { provider: providerName, delta: chunk.delta, phase, round })
+      send('stream:token', { ...ident, delta: chunk.delta, phase, round })
     }
   } catch (err: unknown) {
     if (signal.aborted) return { content: fullContent, tokenCount: estimateTokens(fullContent) }
@@ -137,26 +143,21 @@ async function streamProvider(
   }
 
   const tokenCount = estimateTokens(fullContent)
-  send('stream:done', { provider: providerName, fullContent, tokenCount, phase, round })
+  send('stream:done', { ...ident, fullContent, tokenCount, phase, round })
   return { content: fullContent, tokenCount }
 }
 
-// Like streamProvider, but collects the full response without emitting any
+// Like streamAgent, but collects the full response without emitting any
 // stream events — used for the short moderator verdict call.
 async function collectCompletion(
-  provider: AgentProvider,
+  agent: AgentConfig,
   messages: ChatMessage[],
-  model: string,
-  providerName: ProviderName,
   signal: AbortSignal
 ): Promise<string> {
-  const apiKey = await getApiKey(providerName)
-  if (!apiKey) {
-    throw new Error(`No API key configured for ${providerName}`)
-  }
+  const credential = await resolveCredential(agent.provider)
 
   let fullContent = ''
-  for await (const chunk of provider.streamChat(messages, model, apiKey, signal)) {
+  for await (const chunk of providers[agent.provider].streamChat(messages, agent.model, credential, signal)) {
     if (signal.aborted) break
     fullContent += chunk.delta
   }
@@ -164,7 +165,7 @@ async function collectCompletion(
 }
 
 interface AgentState {
-  provider: ProviderConfig
+  agent: AgentConfig
   initial: string
   position: string
   lastCritique: string | null
@@ -181,9 +182,9 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
   const {
     sessionId,
     prompt,
-    providers: providerConfigs,
+    agents: agentConfigs,
     enableDebate,
-    synthesizer,
+    synthesizerAgentId,
     systemPrompt,
     repoId,
     repoFullName
@@ -191,13 +192,16 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
   const maxDebateRounds = Math.min(Math.max(request.maxDebateRounds ?? 3, 1), 5)
 
   const insertMessage = db.prepare(
-    'INSERT INTO messages (id, session_id, role, agent_name, content, token_count, round) VALUES (?, ?, ?, ?, ?, ?, ?)'
+    'INSERT INTO messages (id, session_id, role, agent_name, agent_id, provider, content, token_count, round) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
   )
+  const insertAgentMessage = (role: string, agent: AgentConfig, content: string, tokenCount: number, round: number): void => {
+    insertMessage.run(uuidv4(), sessionId, role, agent.name, agent.id, agent.provider, content, tokenCount, round)
+  }
 
   try {
-    const activeProviders = providerConfigs.filter((p) => p.enabled)
-    if (activeProviders.length === 0) {
-      send('stream:error', { provider: 'openai', message: 'No providers enabled' })
+    const activeAgents = (agentConfigs ?? []).filter((a) => a.enabled)
+    if (activeAgents.length === 0) {
+      send('stream:notice', { message: 'No agents enabled — enable at least one agent in the Agents dialog.' })
       return
     }
 
@@ -213,11 +217,11 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
 
     // Save user message (with any attached files)
     const userMsgId = uuidv4()
-    insertMessage.run(userMsgId, sessionId, 'user', null, prompt, estimateTokens(prompt), 0)
+    insertMessage.run(userMsgId, sessionId, 'user', null, null, null, prompt, estimateTokens(prompt), 0)
     try {
       saveAttachments(userMsgId, request.attachments ?? [])
     } catch (err) {
-      send('stream:error', { provider: activeProviders[0].name, message: cleanErrorMessage(err) })
+      send('stream:notice', { message: `Failed to save attachments: ${cleanErrorMessage(err)}` })
       return
     }
 
@@ -325,25 +329,20 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
     // Phase 1: Fan-out
     send('stream:phase', { phase: 'initial' })
 
-    const initialResults: { provider: ProviderConfig; content: string; tokenCount: number }[] = []
+    const initialResults: { agent: AgentConfig; content: string; tokenCount: number }[] = []
 
-    const fanOutPromises = activeProviders.map(async (pc) => {
+    const fanOutPromises = activeAgents.map(async (agent) => {
       try {
-        const result = await streamProvider(
-          providers[pc.name],
-          baseMessages,
-          pc.model,
-          pc.name,
-          'initial',
-          signal
-        )
+        const result = await streamAgent(agent, baseMessages, 'initial', signal)
 
-        insertMessage.run(uuidv4(), sessionId, 'agent', pc.name, result.content, result.tokenCount, 0)
-        initialResults.push({ provider: pc, ...result })
+        insertAgentMessage('agent', agent, result.content, result.tokenCount, 0)
+        initialResults.push({ agent, ...result })
       } catch (err: unknown) {
         if (!signal.aborted) {
           send('stream:error', {
-            provider: pc.name,
+            agentId: agent.id,
+            agentName: agent.name,
+            provider: agent.provider,
             message: cleanErrorMessage(err),
             phase: 'initial'
           })
@@ -356,13 +355,16 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
     if (signal.aborted || initialResults.length === 0) return
 
     const agents: AgentState[] = initialResults.map((ir) => ({
-      provider: ir.provider,
+      agent: ir.agent,
       initial: ir.content,
       position: ir.content,
       lastCritique: null
     }))
     const roundSummaries: { round: number; disagreements: string[] }[] = []
-    const moderatorConfig = activeProviders.find((p) => p.name === synthesizer) || activeProviders[0]
+    // The synthesizer agent also moderates debates; fall back to the first
+    // enabled agent when it's disabled or was deleted
+    const synthesizerAgent =
+      activeAgents.find((a) => a.id === synthesizerAgentId) || activeAgents[0]
 
     // Phase 2: Adaptive debate — critique + revise each round, then the
     // moderator judges convergence and decides whether another round runs
@@ -373,8 +375,8 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
 
         // Snapshot pre-round state so all agents critique the same positions
         const snapshot = agents.map((ag) => ({
-          name: ag.provider.name,
-          label: PROVIDER_LABELS[ag.provider.name],
+          id: ag.agent.id,
+          name: ag.agent.name,
           position: ag.position,
           critique: ag.lastCritique
         }))
@@ -384,12 +386,14 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
           agents.map(async (ag) => {
             try {
               const debatePrompt = getDebateRoundPrompt(
-                PROVIDER_LABELS[ag.provider.name],
+                ag.agent.name,
                 round,
                 ag.position,
+                // Opponents are everyone but this agent — filtered by id, so
+                // two agents on the same provider still see each other
                 snapshot
-                  .filter((s) => s.name !== ag.provider.name)
-                  .map((s) => ({ name: s.label, position: s.position, critique: s.critique }))
+                  .filter((s) => s.id !== ag.agent.id)
+                  .map((s) => ({ name: s.name, position: s.position, critique: s.critique }))
               )
 
               const messages: ChatMessage[] = [
@@ -398,18 +402,10 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
                 { role: 'user', content: debatePrompt }
               ]
 
-              const result = await streamProvider(
-                providers[ag.provider.name],
-                messages,
-                ag.provider.model,
-                ag.provider.name,
-                'debate',
-                signal,
-                round
-              )
+              const result = await streamAgent(ag.agent, messages, 'debate', signal, round)
               if (signal.aborted) return
 
-              insertMessage.run(uuidv4(), sessionId, 'debate', ag.provider.name, result.content, result.tokenCount, round)
+              insertAgentMessage('debate', ag.agent, result.content, result.tokenCount, round)
 
               const { critique, revised } = splitDebateResponse(result.content)
               ag.position = revised
@@ -419,7 +415,9 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
               // Agent drops out of this round but keeps its last position for synthesis
               if (!signal.aborted) {
                 send('stream:error', {
-                  provider: ag.provider.name,
+                  agentId: ag.agent.id,
+                  agentName: ag.agent.name,
+                  provider: ag.agent.provider,
                   message: cleanErrorMessage(err),
                   phase: 'debate',
                   round
@@ -447,20 +445,14 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
               role: 'user',
               content: getModeratorPrompt(
                 prompt,
-                agents.map((ag) => ({ name: PROVIDER_LABELS[ag.provider.name], position: ag.position })),
+                agents.map((ag) => ({ name: ag.agent.name, position: ag.position })),
                 round
               )
             }
           ]
           moderatorInputTokens = estimateMessagesTokens(moderatorMessages)
           try {
-            const raw = await collectCompletion(
-              providers[moderatorConfig.name],
-              moderatorMessages,
-              moderatorConfig.model,
-              moderatorConfig.name,
-              signal
-            )
+            const raw = await collectCompletion(synthesizerAgent, moderatorMessages, signal)
             moderatorOutputTokens = estimateTokens(raw)
             verdict = parseModeratorVerdict(raw)
           } catch {
@@ -478,7 +470,7 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
         }
 
         const verdictJson = JSON.stringify(verdict)
-        insertMessage.run(uuidv4(), sessionId, 'moderator', moderatorConfig.name, verdictJson, estimateTokens(verdictJson), round)
+        insertAgentMessage('moderator', synthesizerAgent, verdictJson, estimateTokens(verdictJson), round)
 
         const continuing = !verdict.converged && round < maxDebateRounds
         send('stream:moderator', {
@@ -508,9 +500,11 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
       // which only reads user + synthesis rows, keeps working.
       const only = agents[0]
       const tokenCount = estimateTokens(only.position)
-      insertMessage.run(uuidv4(), sessionId, 'synthesis', only.provider.name, only.position, tokenCount, 0)
+      insertAgentMessage('synthesis', only.agent, only.position, tokenCount, 0)
       send('stream:done', {
-        provider: only.provider.name,
+        agentId: only.agent.id,
+        agentName: only.agent.name,
+        provider: only.agent.provider,
         fullContent: only.position,
         tokenCount,
         phase: 'synthesis'
@@ -519,33 +513,27 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
       const synthesisPrompt = getSynthesisPrompt(
         prompt,
         agents.map((ag) => ({
-          name: PROVIDER_LABELS[ag.provider.name],
+          name: ag.agent.name,
           initial: ag.initial,
           final: ag.position
         })),
         roundSummaries
       )
-      const synthesizerConfig = activeProviders.find((p) => p.name === synthesizer) || activeProviders[0]
 
       try {
         const synthMessages: ChatMessage[] = [{ role: 'user', content: synthesisPrompt }]
 
-        const result = await streamProvider(
-          providers[synthesizerConfig.name],
-          synthMessages,
-          synthesizerConfig.model,
-          synthesizerConfig.name,
-          'synthesis',
-          signal
-        )
+        const result = await streamAgent(synthesizerAgent, synthMessages, 'synthesis', signal)
 
         if (!signal.aborted) {
-          insertMessage.run(uuidv4(), sessionId, 'synthesis', synthesizerConfig.name, result.content, result.tokenCount, 0)
+          insertAgentMessage('synthesis', synthesizerAgent, result.content, result.tokenCount, 0)
         }
       } catch (err: unknown) {
         if (!signal.aborted) {
           send('stream:error', {
-            provider: synthesizerConfig.name,
+            agentId: synthesizerAgent.id,
+            agentName: synthesizerAgent.name,
+            provider: synthesizerAgent.provider,
             message: cleanErrorMessage(err),
             phase: 'synthesis'
           })

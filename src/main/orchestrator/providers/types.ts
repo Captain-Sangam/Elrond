@@ -24,10 +24,12 @@ export interface StreamChunk {
 
 export interface AgentProvider {
   readonly name: string
+  // credential is the API key for cloud providers; for keyless local
+  // providers (ollama) it carries the server base URL instead
   streamChat(
     messages: ChatMessage[],
     model: string,
-    apiKey: string,
+    credential: string,
     signal?: AbortSignal
   ): AsyncIterable<StreamChunk>
 }

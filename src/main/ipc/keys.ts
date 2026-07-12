@@ -3,6 +3,7 @@ import { getApiKey, setApiKey, deleteApiKey } from '../keychain'
 import { testOpenAIKey } from '../orchestrator/providers/openai'
 import { testAnthropicKey } from '../orchestrator/providers/anthropic'
 import { testGoogleKey } from '../orchestrator/providers/google'
+import { testOllamaConnection } from '../orchestrator/providers/ollama'
 import type { KeyProvider, ProviderName } from '../../shared/types'
 
 export function registerKeysHandlers(): void {
@@ -29,5 +30,9 @@ export function registerKeysHandlers(): void {
       default:
         return false
     }
+  })
+
+  ipcMain.handle('ollama:test', async (_, baseUrl: string) => {
+    return testOllamaConnection(baseUrl)
   })
 }

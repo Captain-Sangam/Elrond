@@ -2,18 +2,27 @@
 
 ## Core Deliberation
 
-- Three-agent fan-out with parallel streaming
+- Multi-agent fan-out with parallel streaming — as many agents as you configure
 - Adaptive multi-round debate — agents critique **and revise** their answers each round
 - Moderator agent judges convergence after every round and stops the debate early once agents agree
-- Configurable max debate rounds (1–5, default 3) and synthesizer choice
+- Configurable max debate rounds (1–5, default 3) and synthesizer choice (any agent)
 - Debate toggle — skip straight to synthesis for faster, cheaper queries
 - Conversation context — follow-up questions carry full history (including attachments)
+
+## Agents & Providers
+
+- Agents are named slots decoupled from providers — manage them in the Agents dialog (bot icon in the sidebar)
+- Providers: OpenAI, Anthropic, Google (cloud, API keys in Keychain) and **Ollama** (local, keyless)
+- Several agents can share a provider — e.g. two different Ollama models debating each other
+- Per-agent provider + model assignment, enable/disable toggle, and synthesizer selection
+- Ollama connection in Settings → Providers: server URL, test connection, discovered model list
+- Local Ollama agents cost $0 in the stats rail
 
 ## Attachments
 
 - Attach **images** (PNG, JPEG, WebP, GIF) and **PDFs** to any message
 - Paperclip button, drag-and-drop onto the input, or paste an image from the clipboard
-- Sent natively to all three providers as base64 content blocks
+- Sent natively to the cloud providers as base64 content blocks (Ollama receives images; PDFs are noted as unsupported)
 - Stored locally and re-sent with follow-up questions, so "what does page 2 say?" just works
 - Limits: 10 MB per file, 5 files per message
 
@@ -62,7 +71,8 @@
 ## Settings
 
 - Tabbed dialog: General, Providers, GitHub, Web Search
-- Per-provider model selection (live dropdowns from API)
+- Cloud API keys with test buttons; Ollama server URL with test connection + model list
+- Per-agent model selection lives in the Agents dialog (live dropdowns from each provider)
 - Debate toggle and max debate rounds (1–5)
 - Custom system prompt for all agents
 - Submit key preference (Cmd+Enter or Enter)

@@ -99,11 +99,13 @@ function SelectContent({
 function SelectItem({
   value,
   children,
-  className
+  className,
+  disabled
 }: {
   value: string
   children: React.ReactNode
   className?: string
+  disabled?: boolean
 }): React.JSX.Element {
   const { value: selectedValue, onValueChange, setOpen } = React.useContext(SelectContext)
   return (
@@ -111,9 +113,11 @@ function SelectItem({
       className={cn(
         'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground',
         selectedValue === value && 'bg-accent',
+        disabled && 'pointer-events-none opacity-50',
         className
       )}
       onClick={() => {
+        if (disabled) return
         onValueChange(value)
         setOpen(false)
       }}

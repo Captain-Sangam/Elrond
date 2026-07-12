@@ -1,12 +1,13 @@
 import React, { useCallback, useEffect, useRef, useState } from 'react'
 import { useSessionStore } from '@renderer/stores/sessionStore'
-import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { useAgentsStore } from '@renderer/stores/agentsStore'
 import { AgentPanel } from './AgentPanel'
 import { DebatePanel, type DebateRoundView } from './DebatePanel'
 import { SynthesisPanel } from './SynthesisPanel'
 import { MessageInput } from './MessageInput'
 import { StatsPanel } from '@renderer/components/layout/StatsPanel'
-import type { Attachment, Message, ProviderName } from '@shared/types'
+import { resolveAgentMeta } from '@renderer/lib/providers'
+import type { AgentConfig, Attachment, Message } from '@shared/types'
 import type { DebateVerdict } from '@renderer/stores/sessionStore'
 import { Sparkles, User, GitBranch, ArrowDown, FileText, Loader2 } from 'lucide-react'
 
@@ -37,19 +38,26 @@ function parseStoredVerdict(msg: Message | null, hasNextRound: boolean): DebateV
   }
 }
 
-function toHistoryRoundViews(turn: HistoryTurn): DebateRoundView[] {
+function toHistoryRoundViews(turn: HistoryTurn, agents: AgentConfig[]): DebateRoundView[] {
   const roundNums = Array.from(turn.debateRounds.keys()).sort((a, b) => a - b)
   const maxRound = roundNums[roundNums.length - 1]
   return roundNums.map((n) => {
     const data = turn.debateRounds.get(n)!
     return {
       round: n,
-      entries: data.debates.map((d) => ({
-        provider: d.agent_name as ProviderName,
-        content: d.content,
-        isStreaming: false,
-        error: null
-      })),
+      entries: data.debates.map((d) => {
+        const meta = resolveAgentMeta(d.agent_name, d.provider, agents)
+        return {
+          // Stored rounds use the message id as the stable key; live rounds
+          // use the real agent id
+          agentId: d.agent_id ?? d.id,
+          agentName: meta.displayName,
+          provider: meta.provider,
+          content: d.content,
+          isStreaming: false,
+          error: null
+        }
+      }),
       verdict: parseStoredVerdict(data.moderator, n < maxRound),
       moderating: false
     }
@@ -97,7 +105,7 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
   } = useSessionStore()
 
   const activeSession = sessions.find((s) => s.id === activeSessionId)
-  const { providers } = useSettingsStore()
+  const { agents } = useAgentsStore()
 
   const scrollRef = useRef<HTMLDivElement>(null)
   // Follow the stream only while the user is at the bottom; scrolling up unpins
@@ -159,7 +167,7 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
     )
   }
 
-  const enabledProviders = providers.filter((p) => p.enabled)
+  const enabledAgents = agents.filter((a) => a.enabled)
   const hasActiveStreams = Object.values(agentStreams).some((s) => s.content || s.error)
 
   // Hide the in-flight turn from history; the live panels render it instead
@@ -199,11 +207,13 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
 
   const liveRoundViews: DebateRoundView[] = debateRounds.map((r) => ({
     round: r.round,
-    entries: enabledProviders.map((p) => ({
-      provider: p.name,
-      content: r.streams[p.name]?.content || '',
-      isStreaming: r.streams[p.name]?.isStreaming || false,
-      error: r.streams[p.name]?.error || null
+    entries: enabledAgents.map((a) => ({
+      agentId: a.id,
+      agentName: a.name,
+      provider: a.provider,
+      content: r.streams[a.id]?.content || '',
+      isStreaming: r.streams[a.id]?.isStreaming || false,
+      error: r.streams[a.id]?.error || null
     })),
     verdict: r.verdict,
     moderating: r.moderating
@@ -262,24 +272,28 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
 
                 {/* Agent responses */}
                 {turn.agents.length > 0 && (
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                    {turn.agents.map((agent) => (
-                      <AgentPanel
-                        key={agent.id}
-                        provider={agent.agent_name as ProviderName}
-                        model={providers.find((p) => p.name === agent.agent_name)?.model || ''}
-                        content={agent.content}
-                        isStreaming={false}
-                        error={null}
-                        tokenCount={agent.token_count || undefined}
-                      />
-                    ))}
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                    {turn.agents.map((msg) => {
+                      const meta = resolveAgentMeta(msg.agent_name, msg.provider, agents)
+                      return (
+                        <AgentPanel
+                          key={msg.id}
+                          agentName={meta.displayName}
+                          provider={meta.provider}
+                          model={meta.model || ''}
+                          content={msg.content}
+                          isStreaming={false}
+                          error={null}
+                          tokenCount={msg.token_count || undefined}
+                        />
+                      )
+                    })}
                   </div>
                 )}
 
                 {/* Debate rounds */}
                 {turn.debateRounds.size > 0 && (
-                  <DebatePanel rounds={toHistoryRoundViews(turn)} isActive={false} />
+                  <DebatePanel rounds={toHistoryRoundViews(turn, agents)} isActive={false} />
                 )}
 
                 {/* Synthesis */}
@@ -348,14 +362,15 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                 )}
 
                 {hasActiveStreams && (
-                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-3">
-                    {enabledProviders.map((provider) => {
-                      const stream = agentStreams[provider.name]
+                  <div className="grid grid-cols-1 gap-3 lg:grid-cols-2 xl:grid-cols-3">
+                    {enabledAgents.map((agent) => {
+                      const stream = agentStreams[agent.id]
                       return (
                         <AgentPanel
-                          key={provider.name}
-                          provider={provider.name}
-                          model={provider.model}
+                          key={agent.id}
+                          agentName={agent.name}
+                          provider={agent.provider}
+                          model={agent.model}
                           content={stream?.content || ''}
                           isStreaming={stream?.isStreaming || false}
                           error={stream?.error || null}

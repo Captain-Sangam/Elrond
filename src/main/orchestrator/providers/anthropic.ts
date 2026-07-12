@@ -34,10 +34,10 @@ export class AnthropicProvider implements AgentProvider {
   async *streamChat(
     messages: ChatMessage[],
     model: string,
-    apiKey: string,
+    credential: string,
     signal?: AbortSignal
   ): AsyncIterable<StreamChunk> {
-    const client = new Anthropic({ apiKey })
+    const client = new Anthropic({ apiKey: credential })
 
     const systemMessage = messages.find((m) => m.role === 'system')
     const chatMessages = messages

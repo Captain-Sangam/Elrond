@@ -1,6 +1,7 @@
 import React, { useState, useRef, useCallback, useEffect } from 'react'
 import { useSessionStore } from '@renderer/stores/sessionStore'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
+import { effectiveSynthesizer, useAgentsStore } from '@renderer/stores/agentsStore'
 import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { Input } from '@renderer/components/ui/input'
@@ -102,8 +103,10 @@ export function MessageInput(): React.JSX.Element {
     endDeliberation,
     reloadMessages
   } = useSessionStore()
-  const { providers, synthesizer, enableDebate, maxDebateRounds, systemPrompt, submitKey } =
-    useSettingsStore()
+  const { enableDebate, maxDebateRounds, systemPrompt, submitKey } = useSettingsStore()
+  const { agents, synthesizerAgentId } = useAgentsStore()
+  const enabledAgents = agents.filter((a) => a.enabled)
+  const synthesizerAgent = effectiveSynthesizer({ agents, synthesizerAgentId })
 
   // Detect /github slash command
   useEffect(() => {
@@ -287,6 +290,7 @@ export function MessageInput(): React.JSX.Element {
     // Strip /github prefix if still present
     trimmed = trimmed.replace(/^\/github\s*/i, '').trim()
     if ((!trimmed && attachments.length === 0) || isDeliberating) return
+    if (enabledAgents.length === 0 || !synthesizerAgent) return
     const promptText = trimmed || '(attached files)'
 
     let sessionId = activeSessionId
@@ -323,10 +327,10 @@ export function MessageInput(): React.JSX.Element {
     await window.elrond.startDeliberation({
       sessionId,
       prompt: promptText,
-      providers,
+      agents: enabledAgents,
       enableDebate,
       maxDebateRounds,
-      synthesizer,
+      synthesizerAgentId: synthesizerAgent.id,
       systemPrompt: systemPrompt || undefined,
       repoId: activeSession?.repo_id || undefined,
       repoFullName: repoToSend?.repo.full_name || undefined,
@@ -348,8 +352,8 @@ export function MessageInput(): React.JSX.Element {
     createSession,
     updateSession,
     startDeliberation,
-    providers,
-    synthesizer,
+    enabledAgents,
+    synthesizerAgent,
     enableDebate,
     maxDebateRounds,
     systemPrompt
@@ -688,7 +692,8 @@ export function MessageInput(): React.JSX.Element {
                 onClick={handleSubmit}
                 disabled={
                   (!input.trim() && attachments.length === 0) ||
-                  input.trim().toLowerCase() === '/github'
+                  input.trim().toLowerCase() === '/github' ||
+                  enabledAgents.length === 0
                 }
               >
                 <Send className="h-4 w-4" />
@@ -704,10 +709,16 @@ export function MessageInput(): React.JSX.Element {
             {' to query a repo'}
             {webSearchArmed && <span className="text-primary"> · Web search on</span>}
           </span>
-          <span className="text-[10px] text-muted-foreground">
-            {providers.filter((p) => p.enabled).length} agents active
-            {!enableDebate && ' · Debate off'}
-          </span>
+          {enabledAgents.length === 0 ? (
+            <span className="text-[10px] text-amber-400">
+              0 agents enabled — configure agents to start deliberating
+            </span>
+          ) : (
+            <span className="text-[10px] text-muted-foreground">
+              {enabledAgents.length} agent{enabledAgents.length === 1 ? '' : 's'} active
+              {!enableDebate && ' · Debate off'}
+            </span>
+          )}
         </div>
       </div>
     </div>

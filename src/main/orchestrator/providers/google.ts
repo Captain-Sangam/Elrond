@@ -16,10 +16,10 @@ export class GoogleProvider implements AgentProvider {
   async *streamChat(
     messages: ChatMessage[],
     model: string,
-    apiKey: string,
+    credential: string,
     _signal?: AbortSignal
   ): AsyncIterable<StreamChunk> {
-    const genAI = new GoogleGenerativeAI(apiKey)
+    const genAI = new GoogleGenerativeAI(credential)
     const genModel = genAI.getGenerativeModel({ model })
 
     const systemMessage = messages.find((m) => m.role === 'system')

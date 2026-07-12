@@ -37,8 +37,10 @@ src/
         openai.ts                OpenAI streaming
         anthropic.ts             Anthropic streaming
         google.ts                Google Gemini streaming
+        ollama.ts                Local Ollama streaming (OpenAI-compatible /v1)
       prompts.ts                 Debate + synthesis prompt templates
       index.ts                   Pipeline controller (fan-out, debate, synthesis)
+    agentStore.ts                Agent configs (persistence, validation, seeding)
     keychain.ts                  macOS Keychain wrapper (keytar)
   preload/                       Electron preload (contextBridge)
     index.ts                     Typed API exposed to renderer
@@ -57,23 +59,27 @@ src/
         layout/
           Sidebar.tsx            Session list with search
           TopBar.tsx             Titlebar drag region
+        agents/
+          AgentsDialog.tsx       Agent management (assignments + provider status)
         settings/
-          SettingsDialog.tsx     All settings (keys, models, GitHub, shortcuts)
+          SettingsDialog.tsx     All settings (keys, Ollama server, GitHub, shortcuts)
         onboarding/
           SetupWizard.tsx        First-launch setup flow
         ui/                      shadcn/ui primitive components
       stores/
         sessionStore.ts          Zustand: sessions, messages, streaming state
-        settingsStore.ts         Zustand: models, preferences
+        settingsStore.ts         Zustand: preferences
+        agentsStore.ts           Zustand: agents, synthesizer, Ollama connection
       lib/
         utils.ts                 Tailwind merge, formatters, cost estimation
+        providers.ts             Provider labels/colors, agent metadata resolution
   shared/
     types.ts                     Types shared between main + renderer
 ```
 
 ## Adding a New AI Provider
 
-The most common contribution. Each provider implements the `AgentProvider` interface.
+The most common contribution. Each provider implements the `AgentProvider` interface. Agents are decoupled from providers — users assign a provider + model to each agent slot in the Agents dialog, and several agents can share one provider.
 
 ### 1. Create the adapter
 
@@ -88,16 +94,17 @@ export class YourProvider implements AgentProvider {
   async *streamChat(
     messages: ChatMessage[],
     model: string,
-    apiKey: string,
+    credential: string,
     signal?: AbortSignal,
   ): AsyncIterable<StreamChunk> {
-    // Initialize client with apiKey
+    // credential is the API key for cloud providers. Keyless local providers
+    // receive their server base URL here instead (see ollama.ts).
     // Stream responses, yielding { delta: string } for each chunk
   }
 }
 
 export async function listYourProviderModels(
-  apiKey: string,
+  credential: string,
 ): Promise<string[]> {
   // Fetch available models from the API
 }
@@ -105,15 +112,17 @@ export async function listYourProviderModels(
 export async function testYourProviderKey(apiKey: string): Promise<boolean> {
   // Return true if key authenticates, false only for auth errors
   // Non-auth errors (rate limit, model not found) should return true
+  // Keyless providers expose a test-connection function instead (see ollama.ts)
 }
 ```
 
 ### 2. Register it
 
 - Add to the providers map in `src/main/orchestrator/index.ts`
-- Add to IPC handlers in `src/main/ipc/agents.ts` and `src/main/ipc/keys.ts`
-- Add the provider name to the `ProviderName` union in `src/shared/types.ts`
-- Update the UI: settings dialog, setup wizard, agent panel colors
+- Teach `resolveCredential()` in the same file where the credential comes from (keychain for cloud keys, settings for local base URLs)
+- Add to IPC handlers in `src/main/ipc/agents.ts` (`models:list`) and `src/main/ipc/keys.ts` (`keys:test`, or a dedicated test-connection handler for keyless providers)
+- Add the provider name to the `ProviderName` union in `src/shared/types.ts` (and to `KeyProvider` only if it uses the keychain)
+- Update the UI: provider labels/colors in `src/renderer/src/lib/providers.ts`, key entry in the settings dialog, the provider list in the Agents dialog (`src/renderer/src/components/agents/`)
 
 ## Adding a New GitHub Tool
 

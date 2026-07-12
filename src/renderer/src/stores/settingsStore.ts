@@ -1,10 +1,7 @@
 import { create } from 'zustand'
-import type { ProviderName, ProviderConfig } from '@shared/types'
 
 interface SettingsState {
   setupComplete: boolean
-  providers: ProviderConfig[]
-  synthesizer: ProviderName
   enableDebate: boolean
   maxDebateRounds: number
   globalShortcut: string
@@ -14,17 +11,10 @@ interface SettingsState {
 
   loadSettings: () => Promise<void>
   setSetting: (key: string, value: string) => Promise<void>
-  setProvider: (name: ProviderName, updates: Partial<ProviderConfig>) => void
 }
 
-export const useSettingsStore = create<SettingsState>((set, get) => ({
+export const useSettingsStore = create<SettingsState>((set) => ({
   setupComplete: false,
-  providers: [
-    { name: 'openai', label: 'OpenAI', model: 'gpt-4o', enabled: true },
-    { name: 'anthropic', label: 'Anthropic', model: 'claude-sonnet-4-5-20250514', enabled: true },
-    { name: 'google', label: 'Google', model: 'gemini-pro-latest', enabled: true }
-  ],
-  synthesizer: 'anthropic',
   enableDebate: true,
   maxDebateRounds: 3,
   globalShortcut: 'CommandOrControl+Shift+Space',
@@ -35,15 +25,8 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
   loadSettings: async () => {
     const settings = await window.elrond.getAllSettings()
 
-    const providers = get().providers.map((p) => ({
-      ...p,
-      model: settings[`${p.name}_model`] || p.model
-    }))
-
     set({
       setupComplete: settings.setupComplete === 'true',
-      providers,
-      synthesizer: (settings.synthesizer as ProviderName) || 'anthropic',
       enableDebate: settings.enableDebate !== 'false',
       maxDebateRounds: parseInt(settings.maxDebateRounds || '3', 10) || 3,
       globalShortcut: settings.globalShortcut || 'CommandOrControl+Shift+Space',
@@ -59,9 +42,6 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
     switch (key) {
       case 'setupComplete':
         set({ setupComplete: value === 'true' })
-        break
-      case 'synthesizer':
-        set({ synthesizer: value as ProviderName })
         break
       case 'enableDebate':
         set({ enableDebate: value === 'true' })
@@ -79,20 +59,5 @@ export const useSettingsStore = create<SettingsState>((set, get) => ({
         set({ systemPrompt: value })
         break
     }
-
-    if (key.endsWith('_model')) {
-      const providerName = key.replace('_model', '') as ProviderName
-      const providers = get().providers.map((p) =>
-        p.name === providerName ? { ...p, model: value } : p
-      )
-      set({ providers })
-    }
-  },
-
-  setProvider: (name, updates) => {
-    const providers = get().providers.map((p) =>
-      p.name === name ? { ...p, ...updates } : p
-    )
-    set({ providers })
   }
 }))

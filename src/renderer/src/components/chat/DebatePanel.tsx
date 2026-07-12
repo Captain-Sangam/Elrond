@@ -6,13 +6,9 @@ import { CheckCircle2, ChevronDown, ChevronRight, Loader2, Scale, Swords } from 
 import type { ProviderName } from '@shared/types'
 import type { DebateVerdict } from '@renderer/stores/sessionStore'
 
-const PROVIDER_LABELS: Record<ProviderName, string> = {
-  openai: 'OpenAI',
-  anthropic: 'Anthropic',
-  google: 'Google'
-}
-
 export interface DebateEntry {
+  agentId: string
+  agentName: string
   provider: ProviderName
   content: string
   isStreaming: boolean
@@ -111,9 +107,9 @@ export function DebatePanel({ rounds, maxRounds, isActive }: DebatePanelProps): 
               {expanded && (
                 <div className="space-y-3 pl-5">
                   {round.entries.map((entry) => (
-                    <div key={entry.provider} className="space-y-1">
+                    <div key={entry.agentId} className="space-y-1">
                       <Badge variant="secondary" className="text-[10px]">
-                        {PROVIDER_LABELS[entry.provider]}
+                        {entry.agentName}
                       </Badge>
                       <div>
                         {entry.error ? (

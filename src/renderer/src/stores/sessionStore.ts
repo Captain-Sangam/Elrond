@@ -56,8 +56,8 @@ interface SessionState {
   debateRounds: DebateRoundState[]
   synthesisStream: AgentStream
 
-  // Live stats for the in-flight turn: estimated prompt size per provider
-  // call, keyed `${phase}:${round}:${provider}`, plus wall-clock bounds
+  // Live stats for the in-flight turn: estimated prompt size per agent
+  // call, keyed `${phase}:${round}:${agentId}`, plus wall-clock bounds
   callInputTokens: Record<string, number>
   deliberationStartedAt: number | null
   deliberationEndedAt: number | null
@@ -117,7 +117,7 @@ const revokePreviews = (attachments: PendingAttachmentPreview[]): void => {
 const updateRoundStream = (
   rounds: DebateRoundState[],
   round: number,
-  provider: string,
+  agentId: string,
   updater: (prev: AgentStream) => AgentStream
 ): DebateRoundState[] => {
   const next = ensureRounds(rounds, round)
@@ -126,7 +126,7 @@ const updateRoundStream = (
     ...next[idx],
     streams: {
       ...next[idx].streams,
-      [provider]: updater(next[idx].streams[provider] || emptyStream())
+      [agentId]: updater(next[idx].streams[agentId] || emptyStream())
     }
   }
   return next
@@ -212,22 +212,22 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   handleStreamStart: (start) => {
-    const key = `${start.phase}:${start.round ?? 0}:${start.provider}`
+    const key = `${start.phase}:${start.round ?? 0}:${start.agentId}`
     set((state) => ({
       callInputTokens: { ...state.callInputTokens, [key]: start.inputTokens }
     }))
   },
 
   handleStreamToken: (token) => {
-    const { phase, provider, delta } = token
+    const { phase, agentId, delta } = token
 
     if (phase === 'initial') {
       set((state) => ({
         agentStreams: {
           ...state.agentStreams,
-          [provider]: {
-            ...(state.agentStreams[provider] || emptyStream()),
-            content: (state.agentStreams[provider]?.content || '') + delta,
+          [agentId]: {
+            ...(state.agentStreams[agentId] || emptyStream()),
+            content: (state.agentStreams[agentId]?.content || '') + delta,
             isStreaming: true
           }
         }
@@ -235,7 +235,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     } else if (phase === 'debate') {
       const round = token.round ?? 1
       set((state) => ({
-        debateRounds: updateRoundStream(state.debateRounds, round, provider, (prev) => ({
+        debateRounds: updateRoundStream(state.debateRounds, round, agentId, (prev) => ({
           ...prev,
           content: prev.content + delta,
           isStreaming: true
@@ -253,19 +253,19 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   handleStreamDone: (done) => {
-    const { phase, provider, fullContent, tokenCount } = done
+    const { phase, agentId, fullContent, tokenCount } = done
 
     if (phase === 'initial') {
       set((state) => ({
         agentStreams: {
           ...state.agentStreams,
-          [provider]: { content: fullContent, tokenCount, isStreaming: false, error: null }
+          [agentId]: { content: fullContent, tokenCount, isStreaming: false, error: null }
         }
       }))
     } else if (phase === 'debate') {
       const round = done.round ?? 1
       set((state) => ({
-        debateRounds: updateRoundStream(state.debateRounds, round, provider, () => ({
+        debateRounds: updateRoundStream(state.debateRounds, round, agentId, () => ({
           content: fullContent,
           tokenCount,
           isStreaming: false,
@@ -280,12 +280,12 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   handleStreamError: (error) => {
-    const { provider, message } = error
+    const { agentId, message } = error
 
     if (error.phase === 'debate') {
       const round = error.round ?? 1
       set((state) => ({
-        debateRounds: updateRoundStream(state.debateRounds, round, provider, (prev) => ({
+        debateRounds: updateRoundStream(state.debateRounds, round, agentId, (prev) => ({
           ...prev,
           error: message,
           isStreaming: false
@@ -299,7 +299,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       set((state) => ({
         agentStreams: {
           ...state.agentStreams,
-          [provider]: {
+          [agentId]: {
             content: '',
             tokenCount: 0,
             error: message,
