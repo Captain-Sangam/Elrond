@@ -23,6 +23,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Attachments are stored locally (`~/Library/Application Support/Elrond/attachments/`) and re-sent with follow-up questions so the conversation keeps its context
 - Limits: 10 MB per file, 5 files per message
 
+**Live Stats Panel**
+
+- Collapsible right-side stats rail (toggle in the top bar) with real-time token accounting: burn counter for the current turn, input/output split per phase and per debate round (moderator included), estimated cost, elapsed timer, consensus outcome, and session totals
+- All figures are estimates (chars ÷ 4) — a new `stream:start` event carries the prompt size per provider call
+
 **Developer Experience**
 
 - Makefile with `install`, `dev`, `build`, `start`, `test`, `export`, and `clean` targets

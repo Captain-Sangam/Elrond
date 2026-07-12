@@ -5,7 +5,7 @@ import { AgentPanel } from './AgentPanel'
 import { DebatePanel, type DebateRoundView } from './DebatePanel'
 import { SynthesisPanel } from './SynthesisPanel'
 import { MessageInput } from './MessageInput'
-import { MarkdownContent } from './MarkdownContent'
+import { StatsPanel } from '@renderer/components/layout/StatsPanel'
 import type { Attachment, Message, ProviderName } from '@shared/types'
 import type { DebateVerdict } from '@renderer/stores/sessionStore'
 import { Sparkles, User, GitBranch, ArrowDown, FileText, Loader2 } from 'lucide-react'
@@ -79,7 +79,7 @@ function AttachmentStrip({ attachments }: { attachments: Attachment[] }): React.
   )
 }
 
-export function SessionView(): React.JSX.Element {
+export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.Element {
   const {
     activeSessionId,
     sessions,
@@ -226,8 +226,9 @@ export function SessionView(): React.JSX.Element {
   })()
 
   return (
-    <div className="flex min-h-0 flex-1 flex-col">
-      <div className="relative flex min-h-0 flex-1 flex-col">
+    <div className="flex min-h-0 flex-1">
+      <div className="flex min-h-0 flex-1 flex-col">
+        <div className="relative flex min-h-0 flex-1 flex-col">
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 py-4">
           <div className="mx-auto max-w-5xl space-y-6">
             {activeSession?.repo_id && (
@@ -248,7 +249,10 @@ export function SessionView(): React.JSX.Element {
                     <User className="h-4 w-4 text-primary" />
                   </div>
                   <div className="min-w-0 flex-1 pt-0.5">
-                    <MarkdownContent content={turn.user.content} />
+                    {/* Plain text, not markdown — a user's newlines must render as typed */}
+                    <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                      {turn.user.content}
+                    </p>
                     <AttachmentStrip attachments={turn.user.attachments || []} />
                   </div>
                 </div>
@@ -293,7 +297,9 @@ export function SessionView(): React.JSX.Element {
                   <User className="h-4 w-4 text-primary" />
                 </div>
                 <div className="min-w-0 flex-1 pt-0.5">
-                  <MarkdownContent content={currentPrompt} />
+                  <p className="whitespace-pre-wrap break-words text-sm leading-relaxed">
+                    {currentPrompt}
+                  </p>
                   {currentAttachments.length > 0 && (
                     <div className="mt-2 flex flex-wrap gap-2">
                       {currentAttachments.map((a, i) =>
@@ -379,9 +385,12 @@ export function SessionView(): React.JSX.Element {
             <ArrowDown className="h-4 w-4" />
           </button>
         )}
+        </div>
+
+        <MessageInput />
       </div>
 
-      <MessageInput />
+      {statsOpen && <StatsPanel />}
     </div>
   )
 }

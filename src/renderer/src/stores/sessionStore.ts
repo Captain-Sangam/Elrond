@@ -6,6 +6,7 @@ import type {
   Session,
   StreamDone,
   StreamError,
+  StreamStart,
   StreamToken
 } from '@shared/types'
 
@@ -28,6 +29,7 @@ export interface DebateRoundState {
   streams: Record<string, AgentStream>
   moderating: boolean
   verdict: DebateVerdict | null
+  moderatorTokens: { input: number; output: number } | null
 }
 
 // Optimistic preview of attachments on the in-flight prompt
@@ -53,6 +55,12 @@ interface SessionState {
   debateRounds: DebateRoundState[]
   synthesisStream: AgentStream
 
+  // Live stats for the in-flight turn: estimated prompt size per provider
+  // call, keyed `${phase}:${round}:${provider}`, plus wall-clock bounds
+  callInputTokens: Record<string, number>
+  deliberationStartedAt: number | null
+  deliberationEndedAt: number | null
+
   loadSessions: () => Promise<void>
   setActiveSession: (id: string | null) => Promise<void>
   createSession: (title?: string) => Promise<Session>
@@ -61,6 +69,7 @@ interface SessionState {
   searchSessions: (query: string) => Promise<void>
 
   startDeliberation: (prompt: string, attachments?: PendingAttachmentPreview[]) => void
+  handleStreamStart: (start: StreamStart) => void
   handleStreamToken: (token: StreamToken) => void
   handleStreamDone: (done: StreamDone) => void
   handleStreamError: (error: StreamError) => void
@@ -82,7 +91,8 @@ const emptyRound = (round: number): DebateRoundState => ({
   round,
   streams: {},
   moderating: false,
-  verdict: null
+  verdict: null,
+  moderatorTokens: null
 })
 
 const ensureRounds = (rounds: DebateRoundState[], upTo: number): DebateRoundState[] => {
@@ -132,6 +142,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   agentStreams: {},
   debateRounds: [],
   synthesisStream: emptyStream(),
+
+  callInputTokens: {},
+  deliberationStartedAt: null,
+  deliberationEndedAt: null,
 
   loadSessions: async () => {
     const sessions = await window.elrond.getSessions()
@@ -185,8 +199,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       isDeliberating: true,
       currentPhase: 'initial',
       currentPrompt: prompt,
-      currentAttachments: attachments ?? []
+      currentAttachments: attachments ?? [],
+      deliberationStartedAt: Date.now(),
+      deliberationEndedAt: null
     })
+  },
+
+  handleStreamStart: (start) => {
+    const key = `${start.phase}:${start.round ?? 0}:${start.provider}`
+    set((state) => ({
+      callInputTokens: { ...state.callInputTokens, [key]: start.inputTokens }
+    }))
   },
 
   handleStreamToken: (token) => {
@@ -283,6 +306,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   handlePhaseChange: (phase) => {
     if (phase.phase === 'complete') {
+      set({ deliberationEndedAt: Date.now() })
       // Load the persisted messages before hiding the live panels so the
       // finished deliberation doesn't flicker out of view
       get()
@@ -320,7 +344,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           disagreements: verdict.disagreements,
           summary: verdict.summary,
           continuing: verdict.continuing
-        }
+        },
+        moderatorTokens: { input: verdict.inputTokens ?? 0, output: verdict.outputTokens ?? 0 }
       }
       return { debateRounds: rounds, maxRounds: verdict.maxRounds }
     })
@@ -339,7 +364,10 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       currentPhase: null,
       currentRound: 0,
       maxRounds: 0,
-      totalCost: 0
+      totalCost: 0,
+      callInputTokens: {},
+      deliberationStartedAt: null,
+      deliberationEndedAt: null
     })
   },
 
