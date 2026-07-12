@@ -9,20 +9,28 @@ All conversations stay on your machine. API keys live in your macOS Keychain. No
 ## How It Works
 
 ```
-You → Prompt → [OpenAI, Anthropic, Google] → Debate Round → Synthesis → Answer
+You → Prompt → [OpenAI, Anthropic, Google]
+                       ↓
+        ┌─ Debate Round: critique + revise ─┐
+        │              ↓                    │
+        │   Moderator: converged?  ── no ───┘  (up to N rounds)
+        │              ↓ yes
+        └──────────────┘
+                       ↓
+                  Synthesis → Answer
 ```
 
-1. **Fan-Out** — Your prompt is sent to all three providers in parallel
+1. **Fan-Out** — Your prompt (with any attached images/PDFs) is sent to all three providers in parallel
 2. **Initial Responses** — Each agent's answer streams into its own panel
-3. **Debate** — Each agent critiques the other two (optional, can be disabled)
-4. **Synthesis** — A designated agent consolidates everything into a final answer
+3. **Adaptive Debate** — Each round, agents critique each other **and revise their answers**. A moderator agent then judges whether they've converged: if they still substantively disagree, another round runs (up to a configurable max, default 3); if they agree, the debate ends early
+4. **Synthesis** — A designated agent consolidates the final positions and the moderator's findings into a final answer. Synthesis always runs, even with debate disabled
 
 ## Screenshots
 
 The app features a dark-themed macOS-native interface with:
 
 - Three side-by-side agent response panels with streaming
-- Collapsible debate round showing each agent's critique
+- Collapsible debate rounds with per-round moderator verdicts
 - Prominent synthesis panel with the consolidated answer
 - Session sidebar with search, starring, and history
 - Syntax-highlighted code blocks with copy buttons
@@ -78,10 +86,19 @@ A setup wizard walks you through:
 ### Core Deliberation
 
 - Three-agent fan-out with parallel streaming
-- Structured debate round with critique prompts
-- Configurable synthesis (pick which agent synthesizes)
-- Debate toggle — skip for faster, cheaper queries
-- Conversation context — follow-up questions carry full history
+- Adaptive multi-round debate — agents critique **and revise** their answers each round
+- Moderator agent judges convergence after every round and stops the debate early once agents agree
+- Configurable max debate rounds (1–5, default 3) and synthesizer choice
+- Debate toggle — skip straight to synthesis for faster, cheaper queries
+- Conversation context — follow-up questions carry full history (including attachments)
+
+### Attachments
+
+- Attach **images** (PNG, JPEG, WebP, GIF) and **PDFs** to any message
+- Paperclip button, drag-and-drop onto the input, or paste an image from the clipboard
+- Sent natively to all three providers as base64 content blocks
+- Stored locally and re-sent with follow-up questions, so "what does page 2 say?" just works
+- Limits: 10 MB per file, 5 files per message
 
 ### GitHub Code Q&A
 
@@ -95,6 +112,7 @@ A setup wizard walks you through:
 
 - macOS-native window with hidden titlebar and traffic lights
 - Session sidebar with search, starring, rename, delete
+- Scroll freely while agents stream — auto-follow only when pinned to the bottom, with a jump-to-bottom button
 - Syntax-highlighted code blocks (One Dark theme) with copy buttons
 - Styled markdown tables with hover states
 - Rich blockquotes, links, and inline code formatting
@@ -106,6 +124,7 @@ A setup wizard walks you through:
 ### Settings
 
 - Per-provider model selection (live dropdowns from API)
+- Debate toggle and max debate rounds (1–5)
 - Custom system prompt for all agents
 - Submit key preference (Cmd+Enter or Enter)
 - GitHub token and organization configuration
@@ -116,19 +135,20 @@ A setup wizard walks you through:
 ```
 src/
   main/                     Electron main process
-    db/                     SQLite (sessions, messages, settings, repos, FTS5)
+    attachments.ts          Image/PDF storage, validation, base64 loading
+    db/                     SQLite (sessions, messages, attachments, settings, repos, FTS5)
     github/                 GitHub service (API client, cloning, indexing, tools)
       index.ts              Repo listing, cloning, file walking, code indexing
       tools.ts              Live GitHub tools (PRs, commits, issues, branches)
     ipc/                    IPC handlers bridging renderer ↔ main
     orchestrator/           Deliberation pipeline + provider adapters
-      providers/            OpenAI, Anthropic, Google streaming adapters
-      prompts.ts            Debate + synthesis prompt templates
+      providers/            OpenAI, Anthropic, Google streaming adapters (multimodal)
+      prompts.ts            Debate round, moderator + synthesis prompt templates
     keychain.ts             macOS Keychain via keytar
   preload/                  contextBridge typed API
   renderer/                 React UI
     components/
-      chat/                 Agent panels, debate, synthesis, markdown renderer
+      chat/                 Agent panels, debate rounds, synthesis, markdown renderer
       github/               Repo picker dialog
       layout/               Sidebar, top bar
       onboarding/           Setup wizard
@@ -158,6 +178,7 @@ All data stays local:
 - **Database**: `~/Library/Application Support/Elrond/elrond.db` (SQLite)
 - **API Keys**: macOS Keychain under `com.elrond.app`
 - **Cloned Repos**: `~/Library/Application Support/Elrond/repos/`
+- **Attachments**: `~/Library/Application Support/Elrond/attachments/`
 
 ## Development
 
@@ -166,9 +187,21 @@ npm run dev      # Start in development mode with HMR
 npm run build    # Build for production
 ```
 
+Or via the Makefile:
+
+```bash
+make install     # npm install
+make dev         # development mode with HMR
+make build       # production build into out/
+make start       # build + launch the production bundle
+make test        # typecheck + build (no unit-test suite yet)
+make export      # package Elrond.app into /Applications (Spotlight-searchable)
+make clean       # remove build output
+```
+
 ## Cost Awareness
 
-Running three frontier models per query costs roughly 3-5x a single model call. Use the "disable debate" toggle to halve cost on simple queries. Token counts are displayed on each panel.
+Each debate round costs one call per agent plus a short moderator check, so a query that runs the full 3 rounds costs roughly 3-4x a single-round debate. The moderator usually stops well before the cap — simple questions converge in one round. Use the max-rounds setting or the debate toggle to bound cost; with debate off, a query is just the fan-out plus one synthesis call. Token counts are displayed on each panel.
 
 ## License
 

@@ -1,0 +1,14 @@
+appId: com.elrond.app
+productName: Elrond
+directories:
+  output: dist
+files:
+  - out/**
+  - package.json
+mac:
+  category: public.app-category.productivity
+  # Local, unsigned builds — no certificates required (electron-builder
+  # ad-hoc signs automatically on Apple Silicon so the app still launches)
+  identity: null
+  target:
+    - target: dir

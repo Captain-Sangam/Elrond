@@ -1,12 +1,33 @@
-import { app, shell, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, MenuItem } from 'electron'
-import { join } from 'path'
+import { app, shell, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, protocol, net } from 'electron'
+import { join, resolve } from 'path'
+import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerAllIpcHandlers } from './ipc'
 import { initDatabase } from './db'
 import { getDb } from './db'
+import { getAttachmentsDir } from './attachments'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
+
+// Serves stored attachments to the renderer as <img src="elrond-attachment://<id>">
+protocol.registerSchemesAsPrivileged([{ scheme: 'elrond-attachment', privileges: { stream: true } }])
+
+function registerAttachmentProtocol(): void {
+  protocol.handle('elrond-attachment', (request) => {
+    const id = new URL(request.url).hostname
+    const row = getDb().prepare('SELECT path FROM attachments WHERE id = ?').get(id) as
+      | { path: string }
+      | undefined
+    if (!row) return new Response('Not found', { status: 404 })
+
+    const resolved = resolve(row.path)
+    if (!resolved.startsWith(getAttachmentsDir())) {
+      return new Response('Forbidden', { status: 403 })
+    }
+    return net.fetch(pathToFileURL(resolved).toString())
+  })
+}
 
 function createWindow(): void {
   mainWindow = new BrowserWindow({
@@ -166,12 +187,19 @@ function buildAppMenu(): void {
 app.whenReady().then(() => {
   electronApp.setAppUserModelId('com.elrond.app')
 
+  // Packaged builds get the icon from the bundle; dev runs need it set manually
+  if (is.dev) {
+    const devIcon = nativeImage.createFromPath(join(__dirname, '../../build/icon.png'))
+    if (!devIcon.isEmpty()) app.dock?.setIcon(devIcon)
+  }
+
   app.on('browser-window-created', (_, window) => {
     optimizer.watchWindowShortcuts(window)
   })
 
   buildAppMenu()
   initDatabase()
+  registerAttachmentProtocol()
   registerAllIpcHandlers()
   createWindow()
   createTray()

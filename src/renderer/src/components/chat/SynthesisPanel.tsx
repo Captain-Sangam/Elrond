@@ -8,12 +8,14 @@ interface SynthesisPanelProps {
   content: string
   isStreaming: boolean
   tokenCount?: number
+  error?: string | null
 }
 
 export function SynthesisPanel({
   content,
   isStreaming,
-  tokenCount
+  tokenCount,
+  error
 }: SynthesisPanelProps): React.JSX.Element {
   const [copied, setCopied] = React.useState(false)
 
@@ -23,7 +25,7 @@ export function SynthesisPanel({
     setTimeout(() => setCopied(false), 2000)
   }, [content])
 
-  if (!content && !isStreaming) return <></>
+  if (!content && !isStreaming && !error) return <></>
 
   return (
     <div className="rounded-lg border-2 border-primary/20 bg-card shadow-lg">
@@ -50,7 +52,9 @@ export function SynthesisPanel({
       </div>
 
       <div className="p-4">
-        {content ? (
+        {error ? (
+          <div className="text-sm text-destructive">{error}</div>
+        ) : content ? (
           <MarkdownContent content={content} className={cn(isStreaming && 'streaming-cursor')} />
         ) : (
           <div className="flex items-center gap-2 py-4 text-sm text-muted-foreground">

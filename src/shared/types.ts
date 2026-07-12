@@ -28,7 +28,7 @@ export interface IndexedRepo {
   file_count: number
 }
 
-export type MessageRole = 'user' | 'agent' | 'debate' | 'synthesis'
+export type MessageRole = 'user' | 'agent' | 'debate' | 'moderator' | 'synthesis'
 
 export interface Message {
   id: string
@@ -37,7 +37,26 @@ export interface Message {
   agent_name: string | null
   content: string
   token_count: number | null
+  round: number
   created_at: string
+  attachments?: Attachment[]
+}
+
+export interface Attachment {
+  id: string
+  message_id: string
+  file_name: string
+  mime_type: string
+  size: number
+  path: string
+  created_at: string
+}
+
+// Wire format for attachments sent from renderer to main (base64, no data: prefix)
+export interface AttachmentPayload {
+  fileName: string
+  mimeType: string
+  data: string
 }
 
 export interface Setting {
@@ -60,17 +79,44 @@ export interface AgentResponse {
   tokenCount: number
 }
 
+export type StreamPhase = 'initial' | 'debate' | 'synthesis'
+
 export interface StreamToken {
   provider: ProviderName
   delta: string
-  phase: 'initial' | 'debate' | 'synthesis'
+  phase: StreamPhase
+  round?: number
 }
 
 export interface StreamDone {
   provider: ProviderName
   fullContent: string
   tokenCount: number
-  phase: 'initial' | 'debate' | 'synthesis'
+  phase: StreamPhase
+  round?: number
+}
+
+export interface StreamError {
+  provider: ProviderName
+  message: string
+  phase?: StreamPhase
+  round?: number
+}
+
+export interface PhaseChange {
+  phase: 'fetching_context' | 'initial' | 'debate' | 'moderating' | 'synthesis' | 'complete'
+  round?: number
+  maxRounds?: number
+}
+
+// Emitted after the moderator reviews a debate round (channel 'stream:moderator')
+export interface ModeratorVerdictEvent {
+  round: number
+  maxRounds: number
+  converged: boolean
+  disagreements: string[]
+  summary: string
+  continuing: boolean
 }
 
 export interface DeliberationRequest {
@@ -78,10 +124,12 @@ export interface DeliberationRequest {
   prompt: string
   providers: ProviderConfig[]
   enableDebate: boolean
+  maxDebateRounds: number
   synthesizer: ProviderName
   systemPrompt?: string
   repoId?: string
   repoFullName?: string
+  attachments?: AttachmentPayload[]
 }
 
 export interface ElrondAPI {
@@ -115,8 +163,9 @@ export interface ElrondAPI {
   // Events
   onStreamToken: (callback: (token: StreamToken) => void) => () => void
   onStreamDone: (callback: (done: StreamDone) => void) => () => void
-  onStreamError: (callback: (error: { provider: ProviderName; message: string }) => void) => () => void
-  onPhaseChange: (callback: (phase: { phase: string; provider?: ProviderName }) => void) => () => void
+  onStreamError: (callback: (error: StreamError) => void) => () => void
+  onPhaseChange: (callback: (phase: PhaseChange) => void) => () => void
+  onModeratorVerdict: (callback: (verdict: ModeratorVerdictEvent) => void) => () => void
 
   // Models
   listModels: (provider: ProviderName, apiKey: string) => Promise<string[]>

@@ -5,11 +5,39 @@ import { Button } from '@renderer/components/ui/button'
 import { Textarea } from '@renderer/components/ui/textarea'
 import { Input } from '@renderer/components/ui/input'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
-import { Send, StopCircle, GitBranch, X, Search, Lock, Star, Loader2 } from 'lucide-react'
+import { cn, formatBytes } from '@renderer/lib/utils'
+import { Send, StopCircle, GitBranch, X, Search, Lock, Star, Loader2, Paperclip, FileText } from 'lucide-react'
 import type { GitHubRepo } from '@shared/types'
 
 interface SelectedRepo {
   full_name: string
+}
+
+// Mirrors the whitelist enforced in src/main/attachments.ts
+const ACCEPTED_MIME_TYPES = ['image/png', 'image/jpeg', 'image/webp', 'image/gif', 'application/pdf']
+const ACCEPT_ATTRIBUTE = ACCEPTED_MIME_TYPES.join(',')
+const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024
+const MAX_ATTACHMENTS_PER_MESSAGE = 5
+
+interface PendingAttachment {
+  localId: string
+  fileName: string
+  mimeType: string
+  size: number
+  data: string
+  previewUrl: string | null
+}
+
+function fileToBase64(file: File): Promise<string> {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader()
+    reader.onload = () => {
+      const result = reader.result as string
+      resolve(result.slice(result.indexOf(',') + 1))
+    }
+    reader.onerror = () => reject(reader.error)
+    reader.readAsDataURL(file)
+  })
 }
 
 export function MessageInput(): React.JSX.Element {
@@ -19,17 +47,24 @@ export function MessageInput(): React.JSX.Element {
   const [reposLoading, setReposLoading] = useState(false)
   const [repoSearch, setRepoSearch] = useState('')
   const [selectedRepo, setSelectedRepo] = useState<SelectedRepo | null>(null)
+  const [attachments, setAttachments] = useState<PendingAttachment[]>([])
+  const [attachError, setAttachError] = useState<string | null>(null)
+  const [isDragOver, setIsDragOver] = useState(false)
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const dropdownRef = useRef<HTMLDivElement>(null)
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const {
     activeSessionId,
     sessions,
     isDeliberating,
     createSession,
     updateSession,
-    startDeliberation
+    startDeliberation,
+    endDeliberation,
+    reloadMessages
   } = useSessionStore()
-  const { providers, synthesizer, enableDebate, systemPrompt, submitKey } = useSettingsStore()
+  const { providers, synthesizer, enableDebate, maxDebateRounds, systemPrompt, submitKey } =
+    useSettingsStore()
 
   // Detect /github slash command
   useEffect(() => {
@@ -72,41 +107,149 @@ export function MessageInput(): React.JSX.Element {
     setSelectedRepo(null)
   }, [])
 
+  const addFiles = useCallback(
+    async (files: File[]) => {
+      if (isDeliberating || files.length === 0) return
+      setAttachError(null)
+
+      const errors: string[] = []
+      const accepted: File[] = []
+      let count = attachments.length
+
+      for (const file of files) {
+        if (!ACCEPTED_MIME_TYPES.includes(file.type)) {
+          errors.push(`${file.name}: only images and PDFs are supported`)
+          continue
+        }
+        if (file.size > MAX_ATTACHMENT_BYTES) {
+          errors.push(`${file.name}: over the 10 MB limit`)
+          continue
+        }
+        if (count >= MAX_ATTACHMENTS_PER_MESSAGE) {
+          errors.push(`At most ${MAX_ATTACHMENTS_PER_MESSAGE} files per message`)
+          break
+        }
+        count++
+        accepted.push(file)
+      }
+
+      const read = await Promise.all(
+        accepted.map(async (file) => ({
+          localId: crypto.randomUUID(),
+          fileName: file.name || 'pasted-image.png',
+          mimeType: file.type,
+          size: file.size,
+          data: await fileToBase64(file),
+          previewUrl: file.type.startsWith('image/') ? URL.createObjectURL(file) : null
+        }))
+      )
+
+      setAttachments((prev) => [...prev, ...read])
+      if (errors.length > 0) setAttachError(errors.join(' · '))
+    },
+    [attachments.length, isDeliberating]
+  )
+
+  const removeAttachment = useCallback((localId: string) => {
+    setAttachments((prev) => {
+      const removed = prev.find((a) => a.localId === localId)
+      if (removed?.previewUrl) URL.revokeObjectURL(removed.previewUrl)
+      return prev.filter((a) => a.localId !== localId)
+    })
+    setAttachError(null)
+  }, [])
+
+  const handlePaste = useCallback(
+    (e: React.ClipboardEvent) => {
+      const files = Array.from(e.clipboardData.items)
+        .filter((item) => item.kind === 'file')
+        .map((item) => item.getAsFile())
+        .filter((f): f is File => !!f)
+      if (files.length > 0) {
+        e.preventDefault()
+        addFiles(files)
+      }
+    },
+    [addFiles]
+  )
+
+  const handleDragOver = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      if (!isDeliberating) setIsDragOver(true)
+    },
+    [isDeliberating]
+  )
+
+  const handleDragLeave = useCallback((e: React.DragEvent) => {
+    e.preventDefault()
+    setIsDragOver(false)
+  }, [])
+
+  const handleDrop = useCallback(
+    (e: React.DragEvent) => {
+      e.preventDefault()
+      setIsDragOver(false)
+      addFiles(Array.from(e.dataTransfer.files))
+    },
+    [addFiles]
+  )
+
   const handleSubmit = useCallback(async () => {
     let trimmed = input.trim()
     // Strip /github prefix if still present
     trimmed = trimmed.replace(/^\/github\s*/i, '').trim()
-    if (!trimmed || isDeliberating) return
+    if ((!trimmed && attachments.length === 0) || isDeliberating) return
+    const promptText = trimmed || '(attached files)'
 
     let sessionId = activeSessionId
     if (!sessionId) {
-      const session = await createSession(trimmed.slice(0, 60))
+      const session = await createSession(promptText.slice(0, 60))
       sessionId = session.id
     } else {
       const active = sessions.find((s) => s.id === sessionId)
       if (active && active.title === 'New Session') {
-        await updateSession(sessionId, { title: trimmed.slice(0, 60) })
+        await updateSession(sessionId, { title: promptText.slice(0, 60) })
       }
     }
 
     setInput('')
     const repoToSend = selectedRepo
     setSelectedRepo(null)
-    startDeliberation(trimmed)
+    const attachmentsToSend = attachments
+    setAttachments([])
+    setAttachError(null)
+    // Preview URLs are handed to the store, which revokes them when the
+    // deliberation ends
+    startDeliberation(
+      promptText,
+      attachmentsToSend.map((a) => ({
+        fileName: a.fileName,
+        mimeType: a.mimeType,
+        previewUrl: a.previewUrl
+      }))
+    )
 
     const activeSession = sessions.find((s) => s.id === sessionId)
     await window.elrond.startDeliberation({
       sessionId,
-      prompt: trimmed,
+      prompt: promptText,
       providers,
       enableDebate,
+      maxDebateRounds,
       synthesizer,
       systemPrompt: systemPrompt || undefined,
       repoId: activeSession?.repo_id || undefined,
-      repoFullName: repoToSend?.full_name || undefined
+      repoFullName: repoToSend?.full_name || undefined,
+      attachments: attachmentsToSend.map((a) => ({
+        fileName: a.fileName,
+        mimeType: a.mimeType,
+        data: a.data
+      }))
     })
   }, [
     input,
+    attachments,
     isDeliberating,
     activeSessionId,
     sessions,
@@ -117,12 +260,16 @@ export function MessageInput(): React.JSX.Element {
     providers,
     synthesizer,
     enableDebate,
+    maxDebateRounds,
     systemPrompt
   ])
 
   const handleCancel = useCallback(() => {
     window.elrond.cancelDeliberation()
-  }, [])
+    // The main process stays silent after an abort, so unstick the UI here
+    endDeliberation()
+    reloadMessages()
+  }, [endDeliberation, reloadMessages])
 
   const handleKeyDown = useCallback(
     (e: React.KeyboardEvent) => {
@@ -146,7 +293,12 @@ export function MessageInput(): React.JSX.Element {
   const hasRepoContext = !!selectedRepo || !!activeSession?.repo_id
 
   return (
-    <div className="border-t bg-background/80 backdrop-blur-sm p-4">
+    <div
+      className="border-t bg-background/80 backdrop-blur-sm p-4"
+      onDragOver={handleDragOver}
+      onDragLeave={handleDragLeave}
+      onDrop={handleDrop}
+    >
       <div className="mx-auto max-w-4xl">
         {/* Selected repo badge */}
         {selectedRepo && (
@@ -164,7 +316,44 @@ export function MessageInput(): React.JSX.Element {
           </div>
         )}
 
-        <div className="relative">
+        {/* Pending attachments */}
+        {(attachments.length > 0 || attachError) && (
+          <div className="mb-2 space-y-1.5">
+            {attachments.length > 0 && (
+              <div className="flex flex-wrap gap-2">
+                {attachments.map((a) => (
+                  <div
+                    key={a.localId}
+                    className="flex items-center gap-1.5 rounded-md border bg-muted/30 px-2 py-1"
+                  >
+                    {a.previewUrl ? (
+                      <img
+                        src={a.previewUrl}
+                        alt={a.fileName}
+                        className="h-8 w-8 rounded object-cover"
+                      />
+                    ) : (
+                      <FileText className="h-4 w-4 text-muted-foreground" />
+                    )}
+                    <div className="flex flex-col">
+                      <span className="max-w-40 truncate text-xs">{a.fileName}</span>
+                      <span className="text-[10px] text-muted-foreground">{formatBytes(a.size)}</span>
+                    </div>
+                    <button
+                      onClick={() => removeAttachment(a.localId)}
+                      className="ml-1 rounded-full p-0.5 hover:bg-accent"
+                    >
+                      <X className="h-3 w-3 text-muted-foreground" />
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
+            {attachError && <div className="text-[10px] text-destructive">{attachError}</div>}
+          </div>
+        )}
+
+        <div className={cn('relative rounded-md', isDragOver && 'ring-2 ring-primary/50')}>
           {/* Repo dropdown */}
           {showRepoDropdown && (
             <div
@@ -237,6 +426,7 @@ export function MessageInput(): React.JSX.Element {
             value={input}
             onChange={(e) => setInput(e.target.value)}
             onKeyDown={handleKeyDown}
+            onPaste={handlePaste}
             placeholder={hasRepoContext
               ? 'Ask about the repo — PRs, commits, issues, code...'
               : 'Ask anything... Type /github to query a repo.'}
@@ -244,7 +434,28 @@ export function MessageInput(): React.JSX.Element {
             disabled={isDeliberating}
             rows={2}
           />
+          <input
+            ref={fileInputRef}
+            type="file"
+            multiple
+            accept={ACCEPT_ATTRIBUTE}
+            className="hidden"
+            onChange={(e) => {
+              addFiles(Array.from(e.target.files ?? []))
+              e.target.value = ''
+            }}
+          />
           <div className="absolute bottom-2 right-2 flex items-center gap-1">
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-8 w-8"
+              onClick={() => fileInputRef.current?.click()}
+              disabled={isDeliberating}
+              title="Attach images or PDFs"
+            >
+              <Paperclip className="h-4 w-4" />
+            </Button>
             {isDeliberating ? (
               <Button
                 variant="ghost"
@@ -260,7 +471,10 @@ export function MessageInput(): React.JSX.Element {
                 size="icon"
                 className="h-8 w-8"
                 onClick={handleSubmit}
-                disabled={!input.trim() || (input.trim().toLowerCase() === '/github')}
+                disabled={
+                  (!input.trim() && attachments.length === 0) ||
+                  input.trim().toLowerCase() === '/github'
+                }
               >
                 <Send className="h-4 w-4" />
               </Button>

@@ -1,5 +1,27 @@
 import OpenAI from 'openai'
-import type { AgentProvider, ChatMessage, StreamChunk } from './types'
+import { contentToText, type AgentProvider, type ChatMessage, type ContentPart, type StreamChunk } from './types'
+
+function toOpenAIContentPart(part: ContentPart): OpenAI.Chat.Completions.ChatCompletionContentPart {
+  switch (part.type) {
+    case 'text':
+      return { type: 'text', text: part.text }
+    case 'image':
+      return { type: 'image_url', image_url: { url: `data:${part.mimeType};base64,${part.data}` } }
+    case 'file':
+      return {
+        type: 'file',
+        file: { filename: part.fileName, file_data: `data:${part.mimeType};base64,${part.data}` }
+      }
+  }
+}
+
+// Only user messages accept multimodal parts; other roles are flattened to text
+function toOpenAIMessage(m: ChatMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+  if (m.role === 'user' && typeof m.content !== 'string') {
+    return { role: 'user', content: m.content.map(toOpenAIContentPart) }
+  }
+  return { role: m.role, content: contentToText(m.content) }
+}
 
 export class OpenAIProvider implements AgentProvider {
   readonly name = 'openai'
@@ -14,7 +36,7 @@ export class OpenAIProvider implements AgentProvider {
     const stream = await client.chat.completions.create(
       {
         model,
-        messages: messages.map((m) => ({ role: m.role, content: m.content })),
+        messages: messages.map(toOpenAIMessage),
         stream: true
       },
       { signal }

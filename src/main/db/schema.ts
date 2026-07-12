@@ -14,10 +14,11 @@ export function runMigrations(db: Database.Database): void {
     CREATE TABLE IF NOT EXISTS messages (
       id TEXT PRIMARY KEY,
       session_id TEXT NOT NULL,
-      role TEXT NOT NULL CHECK(role IN ('user', 'agent', 'debate', 'synthesis')),
+      role TEXT NOT NULL CHECK(role IN ('user', 'agent', 'debate', 'moderator', 'synthesis')),
       agent_name TEXT,
       content TEXT NOT NULL,
       token_count INTEGER,
+      round INTEGER NOT NULL DEFAULT 0,
       created_at TEXT NOT NULL DEFAULT (datetime('now')),
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     );
@@ -46,6 +47,18 @@ export function runMigrations(db: Database.Database): void {
       FOREIGN KEY (repo_id) REFERENCES indexed_repos(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS attachments (
+      id TEXT PRIMARY KEY,
+      message_id TEXT NOT NULL,
+      file_name TEXT NOT NULL,
+      mime_type TEXT NOT NULL,
+      size INTEGER NOT NULL DEFAULT 0,
+      path TEXT NOT NULL,
+      created_at TEXT NOT NULL DEFAULT (datetime('now')),
+      FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
+    );
+
+    CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
     CREATE INDEX IF NOT EXISTS idx_repo_files_repo ON repo_files(repo_id);
@@ -107,7 +120,81 @@ export function runMigrations(db: Database.Database): void {
     `)
   }
 
+  // Pre-round DBs lack the round column and the 'moderator' role in the CHECK
+  // constraint; SQLite can't alter either, so rebuild the table. Runs after the
+  // FTS block so messages_fts exists for the trigger recreation + rebuild.
+  const messageCols = db.pragma('table_info(messages)') as { name: string }[]
+  if (!messageCols.some((c) => c.name === 'round')) {
+    migrateMessagesTable(db)
+  }
+
+  // Remove orphaned empty sessions left by the old eager-create New Chat flow
+  db.exec(`
+    DELETE FROM sessions WHERE title = 'New Session' AND repo_id IS NULL
+      AND id NOT IN (SELECT DISTINCT session_id FROM messages)
+  `)
+
+  // Google retired gemini-1.5-pro (the old seeded default); move installs still
+  // on it to the rolling alias so every request doesn't 404
+  db.exec(
+    "UPDATE settings SET value = 'gemini-pro-latest' WHERE key = 'google_model' AND value = 'gemini-1.5-pro'"
+  )
+
   seedDefaults(db)
+}
+
+function migrateMessagesTable(db: Database.Database): void {
+  // rowid must be copied explicitly: messages_fts is an external-content FTS5
+  // table keyed on it. DROP TABLE also removes the messages_* triggers, so they
+  // are recreated here verbatim.
+  db.pragma('foreign_keys = OFF')
+  try {
+    db.transaction(() => {
+      db.exec(`
+        CREATE TABLE messages_new (
+          id TEXT PRIMARY KEY,
+          session_id TEXT NOT NULL,
+          role TEXT NOT NULL CHECK(role IN ('user', 'agent', 'debate', 'moderator', 'synthesis')),
+          agent_name TEXT,
+          content TEXT NOT NULL,
+          token_count INTEGER,
+          round INTEGER NOT NULL DEFAULT 0,
+          created_at TEXT NOT NULL DEFAULT (datetime('now')),
+          FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+        );
+
+        INSERT INTO messages_new (rowid, id, session_id, role, agent_name, content, token_count, round, created_at)
+          SELECT rowid, id, session_id, role, agent_name, content, token_count,
+                 CASE WHEN role = 'debate' THEN 1 ELSE 0 END,
+                 created_at
+          FROM messages;
+
+        DROP TABLE messages;
+        ALTER TABLE messages_new RENAME TO messages;
+
+        CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
+
+        CREATE TRIGGER messages_ai AFTER INSERT ON messages BEGIN
+          INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+        END;
+
+        CREATE TRIGGER messages_ad AFTER DELETE ON messages BEGIN
+          INSERT INTO messages_fts(messages_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+        END;
+
+        CREATE TRIGGER messages_au AFTER UPDATE ON messages BEGIN
+          INSERT INTO messages_fts(messages_fts, rowid, content) VALUES ('delete', old.rowid, old.content);
+          INSERT INTO messages_fts(rowid, content) VALUES (new.rowid, new.content);
+        END;
+
+        INSERT INTO messages_fts(messages_fts) VALUES('rebuild');
+      `)
+    })()
+  } catch (err) {
+    throw new Error(`Failed to migrate messages table: ${err instanceof Error ? err.message : err}`)
+  } finally {
+    db.pragma('foreign_keys = ON')
+  }
 }
 
 function seedDefaults(db: Database.Database): void {
@@ -116,9 +203,10 @@ function seedDefaults(db: Database.Database): void {
   const defaults: [string, string][] = [
     ['openai_model', 'gpt-4o'],
     ['anthropic_model', 'claude-sonnet-4-5-20250514'],
-    ['google_model', 'gemini-1.5-pro'],
+    ['google_model', 'gemini-pro-latest'],
     ['synthesizer', 'anthropic'],
     ['enableDebate', 'true'],
+    ['maxDebateRounds', '3'],
     ['globalShortcut', 'CommandOrControl+Shift+Space'],
     ['submitKey', 'CmdEnter'],
     ['systemPrompt', ''],
