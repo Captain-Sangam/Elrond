@@ -280,7 +280,6 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                           key={msg.id}
                           agentName={meta.displayName}
                           provider={meta.provider}
-                          model={meta.model || ''}
                           content={msg.content}
                           isStreaming={false}
                           error={null}
@@ -370,7 +369,6 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                           key={agent.id}
                           agentName={agent.name}
                           provider={agent.provider}
-                          model={agent.model}
                           content={stream?.content || ''}
                           isStreaming={stream?.isStreaming || false}
                           error={stream?.error || null}

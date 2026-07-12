@@ -1,4 +1,4 @@
-import React, { useCallback, useEffect, useState } from 'react'
+import React, { useCallback } from 'react'
 import { useAgentsStore, type OllamaStatus } from '@renderer/stores/agentsStore'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
@@ -31,8 +31,6 @@ export function AgentRow({
   ollamaStatus
 }: AgentRowProps): React.JSX.Element {
   const { synthesizerAgentId, updateAgent, removeAgent, setSynthesizer } = useAgentsStore()
-  const [localName, setLocalName] = useState(agent.name)
-  useEffect(() => setLocalName(agent.name), [agent.name])
 
   const isSynthesizer = synthesizerAgentId === agent.id
   const models = availableModels[agent.provider]
@@ -41,17 +39,6 @@ export function AgentRow({
     p === 'ollama'
       ? ollamaStatus !== 'connected' && availableModels.ollama.length === 0
       : !keyPresence[p]
-
-  const handleCommitName = useCallback(() => {
-    const trimmed = localName.trim()
-    if (!trimmed) {
-      setLocalName(agent.name)
-      return
-    }
-    if (trimmed !== agent.name) {
-      updateAgent(agent.id, { name: trimmed })
-    }
-  }, [localName, agent.id, agent.name, updateAgent])
 
   const handleProviderChange = useCallback(
     (value: string) => {
@@ -72,14 +59,8 @@ export function AgentRow({
     <div className="space-y-2 rounded-lg border p-3">
       <div className="flex items-center gap-2">
         <span className={`h-2 w-2 shrink-0 rounded-full ${PROVIDER_DOT_COLORS[agent.provider]}`} />
-        <Input
-          value={localName}
-          onChange={(e) => setLocalName(e.target.value)}
-          onBlur={handleCommitName}
-          onKeyDown={(e) => e.key === 'Enter' && (e.target as HTMLInputElement).blur()}
-          className="h-8 flex-1 text-xs font-medium"
-          placeholder="Agent name"
-        />
+        {/* The name is derived from provider:model — it can never drift */}
+        <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">{agent.name}</span>
         <Button
           variant="ghost"
           size="icon"

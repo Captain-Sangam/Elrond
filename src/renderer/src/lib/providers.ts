@@ -27,10 +27,15 @@ export const CLOUD_PROVIDERS: Exclude<ProviderName, 'ollama'>[] = ['openai', 'an
 
 const LEGACY_PROVIDER_NAMES: ProviderName[] = ['openai', 'anthropic', 'google']
 
+// Agent names are never hand-written — always derived from what the agent
+// actually runs, so a provider/model change can't leave a stale label behind
+export function agentDisplayName(provider: ProviderName, model: string): string {
+  return model ? `${provider}:${model}` : PROVIDER_LABELS[provider]
+}
+
 export interface AgentMeta {
   displayName: string
   provider: ProviderName
-  model?: string
 }
 
 // Resolves a persisted messages.agent_name to display metadata. New rows store
@@ -46,7 +51,7 @@ export function resolveAgentMeta(
   }
   const live = agentName ? agents.find((a) => a.name === agentName) : undefined
   if (live) {
-    return { displayName: live.name, provider: live.provider, model: live.model }
+    return { displayName: live.name, provider: live.provider }
   }
   if (agentName && LEGACY_PROVIDER_NAMES.includes(agentName as ProviderName)) {
     const legacy = agentName as ProviderName

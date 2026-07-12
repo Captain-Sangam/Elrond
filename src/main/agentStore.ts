@@ -82,15 +82,20 @@ export async function seedAgentsIfNeeded(): Promise<void> {
   const keyed = await Promise.all(CLOUD_PROVIDERS.map(async (p) => Boolean(await getApiKey(p.name))))
   const anyKeys = keyed.some(Boolean)
 
-  const agents: AgentConfig[] = CLOUD_PROVIDERS.map((p, i) => ({
-    id: uuidv4(),
-    name: p.label,
-    provider: p.name,
-    model: getSetting(`${p.name}_model`) ?? '',
-    // Fresh installs (no keys yet) keep every provider on, matching the old
-    // default; upgrades enable only the providers that can actually run
-    enabled: anyKeys ? keyed[i] : true
-  })).filter((a) => a.model !== '')
+  const agents: AgentConfig[] = CLOUD_PROVIDERS.map((p, i) => {
+    const model = getSetting(`${p.name}_model`) ?? ''
+    return {
+      id: uuidv4(),
+      // Names are derived from provider:model (the renderer keeps them in
+      // sync on every provider/model change) so labels can never go stale
+      name: `${p.name}:${model}`,
+      provider: p.name,
+      model,
+      // Fresh installs (no keys yet) keep every provider on, matching the old
+      // default; upgrades enable only the providers that can actually run
+      enabled: anyKeys ? keyed[i] : true
+    }
+  }).filter((a) => a.model !== '')
 
   saveAgents(agents)
 

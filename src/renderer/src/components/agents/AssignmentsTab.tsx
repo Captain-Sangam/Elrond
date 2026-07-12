@@ -8,7 +8,6 @@ import {
   SelectTrigger,
   SelectValue
 } from '@renderer/components/ui/select'
-import { PROVIDER_LABELS } from '@renderer/lib/providers'
 import { AlertTriangle, Plus } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
 import { AgentRow } from './AgentRow'
@@ -33,11 +32,7 @@ export function AssignmentsTab({
       ollamaStatus === 'connected' && availableModels.ollama.length > 0
         ? 'ollama'
         : (['openai', 'anthropic', 'google'] as const).find((p) => keyPresence[p]) ?? 'openai'
-    addAgent({
-      provider,
-      name: PROVIDER_LABELS[provider],
-      model: availableModels[provider][0] ?? ''
-    })
+    addAgent({ provider, model: availableModels[provider][0] ?? '' })
   }, [addAgent, availableModels, keyPresence, ollamaStatus])
 
   return (

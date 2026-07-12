@@ -10,7 +10,6 @@ import { PROVIDER_COLORS } from '@renderer/lib/providers'
 interface AgentPanelProps {
   agentName: string
   provider: ProviderName
-  model: string
   content: string
   isStreaming: boolean
   error: string | null
@@ -20,7 +19,6 @@ interface AgentPanelProps {
 export function AgentPanel({
   agentName,
   provider,
-  model,
   content,
   isStreaming,
   error,
@@ -38,10 +36,10 @@ export function AgentPanel({
     <div className="flex flex-col rounded-lg border bg-card">
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">
+          {/* The agent name embeds provider:model, so no separate model label */}
           <Badge variant="outline" className={cn('text-[10px]', PROVIDER_COLORS[provider])}>
             {agentName}
           </Badge>
-          <span className="text-[10px] text-muted-foreground">{model}</span>
         </div>
         <div className="flex items-center gap-1">
           {tokenCount !== undefined && tokenCount > 0 && (
