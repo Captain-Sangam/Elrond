@@ -81,6 +81,15 @@ export interface AgentResponse {
 
 export type StreamPhase = 'initial' | 'debate' | 'synthesis'
 
+// Emitted when a provider call begins, with the estimated prompt size —
+// lets the UI show input tokens before any output streams back
+export interface StreamStart {
+  provider: ProviderName
+  phase: StreamPhase
+  round?: number
+  inputTokens: number
+}
+
 export interface StreamToken {
   provider: ProviderName
   delta: string
@@ -117,6 +126,8 @@ export interface ModeratorVerdictEvent {
   disagreements: string[]
   summary: string
   continuing: boolean
+  inputTokens: number
+  outputTokens: number
 }
 
 export interface DeliberationRequest {
@@ -161,6 +172,7 @@ export interface ElrondAPI {
   cancelDeliberation: () => Promise<void>
 
   // Events
+  onStreamStart: (callback: (start: StreamStart) => void) => () => void
   onStreamToken: (callback: (token: StreamToken) => void) => () => void
   onStreamDone: (callback: (done: StreamDone) => void) => () => void
   onStreamError: (callback: (error: StreamError) => void) => () => void

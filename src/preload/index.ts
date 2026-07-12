@@ -5,6 +5,7 @@ import type {
   PhaseChange,
   StreamDone,
   StreamError,
+  StreamStart,
   StreamToken
 } from '../shared/types'
 
@@ -37,6 +38,11 @@ const api: ElrondAPI = {
   cancelDeliberation: () => ipcRenderer.invoke('deliberation:cancel'),
 
   // Events
+  onStreamStart: (callback) => {
+    const handler = (_: Electron.IpcRendererEvent, start: StreamStart) => callback(start)
+    ipcRenderer.on('stream:start', handler)
+    return () => ipcRenderer.removeListener('stream:start', handler)
+  },
   onStreamToken: (callback) => {
     const handler = (_: Electron.IpcRendererEvent, token: StreamToken) => callback(token)
     ipcRenderer.on('stream:token', handler)

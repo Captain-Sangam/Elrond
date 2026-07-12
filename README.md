@@ -112,6 +112,7 @@ A setup wizard walks you through:
 
 - macOS-native window with hidden titlebar and traffic lights
 - Session sidebar with search, starring, rename, delete
+- Live stats rail (toggle in the top bar): tokens burnt per phase and per debate round, in/out split, estimated cost, elapsed timer, and consensus outcome — updating in real time as agents stream
 - Scroll freely while agents stream — auto-follow only when pinned to the bottom, with a jump-to-bottom button
 - Syntax-highlighted code blocks (One Dark theme) with copy buttons
 - Styled markdown tables with hover states

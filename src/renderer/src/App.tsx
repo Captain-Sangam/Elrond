@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from 'react'
+import React, { useCallback, useEffect, useState } from 'react'
 import { useSettingsStore } from './stores/settingsStore'
 import { useSessionStore } from './stores/sessionStore'
 import { Sidebar } from './components/layout/Sidebar'
@@ -13,6 +13,7 @@ export default function App(): React.JSX.Element {
   const { loaded, setupComplete, loadSettings } = useSettingsStore()
   const {
     loadSessions,
+    handleStreamStart,
     handleStreamToken,
     handleStreamDone,
     handleStreamError,
@@ -21,6 +22,14 @@ export default function App(): React.JSX.Element {
   } = useSessionStore()
   const [settingsOpen, setSettingsOpen] = useState(false)
   const [repoPickerOpen, setRepoPickerOpen] = useState(false)
+  const [statsOpen, setStatsOpen] = useState(() => localStorage.getItem('elrond:statsOpen') !== 'false')
+
+  const toggleStats = useCallback(() => {
+    setStatsOpen((prev) => {
+      localStorage.setItem('elrond:statsOpen', String(!prev))
+      return !prev
+    })
+  }, [])
 
   useEffect(() => {
     loadSettings()
@@ -28,6 +37,7 @@ export default function App(): React.JSX.Element {
   }, [loadSettings, loadSessions])
 
   useEffect(() => {
+    const unsubStart = window.elrond.onStreamStart(handleStreamStart)
     const unsubToken = window.elrond.onStreamToken(handleStreamToken)
     const unsubDone = window.elrond.onStreamDone(handleStreamDone)
     const unsubError = window.elrond.onStreamError(handleStreamError)
@@ -35,13 +45,21 @@ export default function App(): React.JSX.Element {
     const unsubModerator = window.elrond.onModeratorVerdict(handleModeratorVerdict)
 
     return () => {
+      unsubStart()
       unsubToken()
       unsubDone()
       unsubError()
       unsubPhase()
       unsubModerator()
     }
-  }, [handleStreamToken, handleStreamDone, handleStreamError, handlePhaseChange, handleModeratorVerdict])
+  }, [
+    handleStreamStart,
+    handleStreamToken,
+    handleStreamDone,
+    handleStreamError,
+    handlePhaseChange,
+    handleModeratorVerdict
+  ])
 
   if (!loaded) {
     return (
@@ -60,8 +78,8 @@ export default function App(): React.JSX.Element {
       <div className="flex h-screen">
         <Sidebar onSettingsClick={() => setSettingsOpen(true)} onRepoClick={() => setRepoPickerOpen(true)} />
         <div className="flex flex-1 flex-col">
-          <TopBar />
-          <SessionView />
+          <TopBar statsOpen={statsOpen} onToggleStats={toggleStats} />
+          <SessionView statsOpen={statsOpen} />
         </div>
         <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
         <RepoPickerDialog open={repoPickerOpen} onOpenChange={setRepoPickerOpen} />

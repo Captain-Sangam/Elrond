@@ -83,6 +83,23 @@ function estimateTokens(text: string): number {
   return Math.ceil(text.length / 4)
 }
 
+// Rough flat estimate per image/PDF part — base64 length wildly overestimates
+const ATTACHMENT_TOKEN_ESTIMATE = 1500
+
+function estimateMessagesTokens(messages: ChatMessage[]): number {
+  let total = 0
+  for (const m of messages) {
+    if (typeof m.content === 'string') {
+      total += estimateTokens(m.content)
+    } else {
+      for (const part of m.content) {
+        total += part.type === 'text' ? estimateTokens(part.text) : ATTACHMENT_TOKEN_ESTIMATE
+      }
+    }
+  }
+  return total
+}
+
 function attachmentToPart(fileName: string, mimeType: string, data: string): ContentPart {
   return mimeType.startsWith('image/')
     ? { type: 'image', mimeType, data }
@@ -104,6 +121,8 @@ async function streamProvider(
   if (!apiKey) {
     throw new Error(`No API key configured for ${providerName}`)
   }
+
+  send('stream:start', { provider: providerName, phase, round, inputTokens: estimateMessagesTokens(messages) })
 
   try {
     for await (const chunk of provider.streamChat(messages, model, apiKey, signal)) {
@@ -394,6 +413,8 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
         if (signal.aborted) return
 
         let verdict: ModeratorVerdict
+        let moderatorInputTokens = 0
+        let moderatorOutputTokens = 0
         if (freshCount < 2) {
           verdict = {
             converged: true,
@@ -402,23 +423,26 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
           }
         } else {
           send('stream:phase', { phase: 'moderating', round, maxRounds: maxDebateRounds })
+          const moderatorMessages: ChatMessage[] = [
+            {
+              role: 'user',
+              content: getModeratorPrompt(
+                prompt,
+                agents.map((ag) => ({ name: PROVIDER_LABELS[ag.provider.name], position: ag.position })),
+                round
+              )
+            }
+          ]
+          moderatorInputTokens = estimateMessagesTokens(moderatorMessages)
           try {
             const raw = await collectCompletion(
               providers[moderatorConfig.name],
-              [
-                {
-                  role: 'user',
-                  content: getModeratorPrompt(
-                    prompt,
-                    agents.map((ag) => ({ name: PROVIDER_LABELS[ag.provider.name], position: ag.position })),
-                    round
-                  )
-                }
-              ],
+              moderatorMessages,
               moderatorConfig.model,
               moderatorConfig.name,
               signal
             )
+            moderatorOutputTokens = estimateTokens(raw)
             verdict = parseModeratorVerdict(raw)
           } catch {
             // A moderator failure must never sink the deliberation — end the
@@ -444,7 +468,9 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
           converged: verdict.converged,
           disagreements: verdict.disagreements,
           summary: verdict.summary,
-          continuing
+          continuing,
+          inputTokens: moderatorInputTokens,
+          outputTokens: moderatorOutputTokens
         })
         roundSummaries.push({ round, disagreements: verdict.disagreements })
 
