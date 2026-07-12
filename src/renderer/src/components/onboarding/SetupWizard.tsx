@@ -120,7 +120,7 @@ export function SetupWizard(): React.JSX.Element {
       )
       for (const model of store.ollamaModels.slice(0, Math.max(2 - cloudEnabled, 1))) {
         if (!existing.has(model)) {
-          store.addAgent({ provider: 'ollama', name: model, model })
+          store.addAgent({ provider: 'ollama', model })
         }
       }
       if (cloudEnabled === 0) {
