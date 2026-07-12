@@ -1,18 +1,9 @@
 import React, { useEffect, useState } from 'react'
-import { useSessionStore } from '@renderer/stores/sessionStore'
+import { useSessionStore, type TurnStats } from '@renderer/stores/sessionStore'
 import { effectiveSynthesizer, useAgentsStore } from '@renderer/stores/agentsStore'
-import { estimateCost, formatCost, formatTokens } from '@renderer/lib/utils'
+import { formatCost, formatTokens } from '@renderer/lib/utils'
+import { deriveTurnStats, type PhaseRow } from '@renderer/lib/turnStats'
 import { ArrowDown, ArrowUp, CheckCircle2, Clock, Flame, Scale, Zap } from 'lucide-react'
-
-interface PhaseRow {
-  key: string
-  label: string
-  input: number
-  output: number
-  active: boolean
-}
-
-const estimateFromContent = (content: string): number => Math.ceil(content.length / 4)
 
 function formatElapsed(ms: number): string {
   const total = Math.floor(ms / 1000)
@@ -42,6 +33,24 @@ function StatRow({ row }: { row: PhaseRow }): React.JSX.Element {
   )
 }
 
+// Compact one-line summary of an archived (finished) turn
+function PastTurnRow({ stats }: { stats: TurnStats }): React.JSX.Element {
+  return (
+    <div
+      className="flex items-center justify-between rounded-md border bg-card/30 px-2 py-1.5 text-xs"
+      title={`↑ ${formatTokens(stats.input)} in · ↓ ${formatTokens(stats.output)} out · ${formatElapsed(stats.elapsedMs)}${
+        stats.rounds > 0 ? ` · ${stats.rounds} round${stats.rounds > 1 ? 's' : ''}` : ''
+      }`}
+    >
+      <span className="text-muted-foreground">Turn {stats.turn}</span>
+      <span className="flex items-center gap-2 font-mono tabular-nums text-muted-foreground">
+        <span>{formatTokens(stats.input + stats.output)}</span>
+        <span>{formatCost(stats.cost)}</span>
+      </span>
+    </div>
+  )
+}
+
 export function StatsPanel(): React.JSX.Element {
   const {
     messages,
@@ -52,7 +61,8 @@ export function StatsPanel(): React.JSX.Element {
     synthesisStream,
     callInputTokens,
     deliberationStartedAt,
-    deliberationEndedAt
+    deliberationEndedAt,
+    turnStats
   } = useSessionStore()
   const { agents, synthesizerAgentId } = useAgentsStore()
   const synthesizerAgent = effectiveSynthesizer({ agents, synthesizerAgentId })
@@ -65,88 +75,29 @@ export function StatsPanel(): React.JSX.Element {
     return () => clearInterval(id)
   }, [isDeliberating])
 
-  const enabledAgents = agents.filter((a) => a.enabled)
-  const inputFor = (phase: string, round: number): number =>
-    enabledAgents.reduce((sum, a) => sum + (callInputTokens[`${phase}:${round}:${a.id}`] ?? 0), 0)
-
-  // Per-agent in/out accumulators for cost estimation
-  const perAgent: Record<string, { input: number; output: number }> = {}
-  const bump = (agentId: string, input: number, output: number): void => {
-    const acc = (perAgent[agentId] ??= { input: 0, output: 0 })
-    acc.input += input
-    acc.output += output
-  }
-
-  const rows: PhaseRow[] = []
-
-  const initialOut = enabledAgents.reduce(
-    (sum, a) => sum + estimateFromContent(agentStreams[a.id]?.content || ''),
-    0
-  )
   const hasTurn = deliberationStartedAt !== null
-  if (hasTurn) {
-    rows.push({
-      key: 'initial',
-      label: 'Initial answers',
-      input: inputFor('initial', 0),
-      output: initialOut,
-      active: isDeliberating && currentPhase === 'initial'
-    })
-    for (const a of enabledAgents) {
-      bump(a.id, callInputTokens[`initial:0:${a.id}`] ?? 0, estimateFromContent(agentStreams[a.id]?.content || ''))
-    }
-
-    for (const round of debateRounds) {
-      let roundIn = inputFor('debate', round.round)
-      let roundOut = 0
-      for (const a of enabledAgents) {
-        const out = estimateFromContent(round.streams[a.id]?.content || '')
-        roundOut += out
-        bump(a.id, callInputTokens[`debate:${round.round}:${a.id}`] ?? 0, out)
-      }
-      if (round.moderatorTokens && synthesizerAgent) {
-        roundIn += round.moderatorTokens.input
-        roundOut += round.moderatorTokens.output
-        bump(synthesizerAgent.id, round.moderatorTokens.input, round.moderatorTokens.output)
-      }
-      rows.push({
-        key: `round-${round.round}`,
-        label: `Round ${round.round}${round.moderatorTokens ? ' + moderator' : ''}`,
-        input: roundIn,
-        output: roundOut,
-        active:
-          isDeliberating &&
-          (currentPhase === 'debate' || currentPhase === 'moderating') &&
-          round.round === debateRounds.length
-      })
-    }
-
-    const synthIn = inputFor('synthesis', 0)
-    const synthOut = estimateFromContent(synthesisStream.content)
-    if (synthIn > 0 || synthOut > 0 || currentPhase === 'synthesis') {
-      rows.push({
-        key: 'synthesis',
-        label: 'Synthesis',
-        input: synthIn,
-        output: synthOut,
-        active: isDeliberating && currentPhase === 'synthesis'
-      })
-      if (synthesizerAgent) bump(synthesizerAgent.id, synthIn, synthOut)
-    }
-  }
-
-  const turnInput = rows.reduce((s, r) => s + r.input, 0)
-  const turnOutput = rows.reduce((s, r) => s + r.output, 0)
-  const turnCost = Object.entries(perAgent).reduce((sum, [agentId, acc]) => {
-    const agent = agents.find((a) => a.id === agentId)
-    return sum + estimateCost(agent?.model || '', acc.input, acc.output, agent?.provider)
-  }, 0)
+  const current = deriveTurnStats({
+    enabledAgents: agents.filter((a) => a.enabled),
+    synthesizerAgent,
+    agentStreams,
+    debateRounds,
+    synthesisStream,
+    callInputTokens,
+    isDeliberating,
+    currentPhase
+  })
 
   const elapsed = deliberationStartedAt
     ? Math.max(0, (deliberationEndedAt ?? now) - deliberationStartedAt)
     : null
 
   const lastVerdict = debateRounds.length > 0 ? debateRounds[debateRounds.length - 1].verdict : null
+
+  // Running totals across every turn seen in this view of the session
+  const totalTokens =
+    turnStats.reduce((s, t) => s + t.input + t.output, 0) +
+    (hasTurn ? current.input + current.output : 0)
+  const totalCost = turnStats.reduce((s, t) => s + t.cost, 0) + (hasTurn ? current.cost : 0)
 
   // Session lifetime: everything the agents have ever generated in this session
   const sessionGenerated = messages.reduce((s, m) => s + (m.token_count || 0), 0)
@@ -160,33 +111,45 @@ export function StatsPanel(): React.JSX.Element {
         <span className="ml-auto font-normal normal-case">est.</span>
       </div>
 
+      {/* Finished turns stack up here; the live turn renders below them */}
+      {turnStats.length > 0 && (
+        <div className="space-y-1">
+          {turnStats.map((t) => (
+            <PastTurnRow key={t.turn} stats={t} />
+          ))}
+        </div>
+      )}
+
       {hasTurn ? (
         <>
-          {/* Big burn counter */}
+          {/* Big burn counter for the current turn */}
           <div className="rounded-lg border bg-card/50 p-3 text-center">
-            <div className="flex items-center justify-center gap-1.5">
+            <div className="text-[10px] font-medium text-muted-foreground">
+              Turn {turnStats.length + 1}
+            </div>
+            <div className="mt-1 flex items-center justify-center gap-1.5">
               <Flame className={`h-4 w-4 ${isDeliberating ? 'animate-pulse text-orange-400' : 'text-muted-foreground'}`} />
               <span className="font-mono text-xl font-semibold tabular-nums">
-                {formatTokens(turnInput + turnOutput)}
+                {formatTokens(current.input + current.output)}
               </span>
             </div>
             <div className="mt-0.5 text-[10px] text-muted-foreground">tokens burnt this turn</div>
             <div className="mt-2 flex items-center justify-center gap-3 text-[10px] text-muted-foreground">
               <span className="flex items-center gap-0.5">
                 <ArrowUp className="h-2.5 w-2.5" />
-                {formatTokens(turnInput)} in
+                {formatTokens(current.input)} in
               </span>
               <span className="flex items-center gap-0.5">
                 <ArrowDown className="h-2.5 w-2.5" />
-                {formatTokens(turnOutput)} out
+                {formatTokens(current.output)} out
               </span>
-              <span>{formatCost(turnCost)}</span>
+              <span>{formatCost(current.cost)}</span>
             </div>
           </div>
 
           {/* Per-phase breakdown */}
           <div className="space-y-1.5">
-            {rows.map((row) => (
+            {current.rows.map((row) => (
               <StatRow key={row.key} row={row} />
             ))}
           </div>
@@ -215,13 +178,24 @@ export function StatsPanel(): React.JSX.Element {
           </div>
         </>
       ) : (
-        <div className="rounded-lg border border-dashed p-3 text-center text-[10px] text-muted-foreground">
-          Send a message to see live token stats
-        </div>
+        turnStats.length === 0 && (
+          <div className="rounded-lg border border-dashed p-3 text-center text-[10px] text-muted-foreground">
+            Send a message to see live token stats
+          </div>
+        )
       )}
 
-      {/* Session lifetime */}
+      {/* Running + lifetime totals */}
       <div className="mt-auto space-y-1 border-t pt-3 text-xs text-muted-foreground">
+        {totalTokens > 0 && (
+          <div className="flex items-center justify-between font-medium text-foreground">
+            <span>Total</span>
+            <span className="flex items-center gap-2 font-mono tabular-nums">
+              <span>{formatTokens(totalTokens)}</span>
+              <span>{formatCost(totalCost)}</span>
+            </span>
+          </div>
+        )}
         <div className="flex items-center justify-between">
           <span>Session generated</span>
           <span className="font-mono tabular-nums">{formatTokens(sessionGenerated)}</span>

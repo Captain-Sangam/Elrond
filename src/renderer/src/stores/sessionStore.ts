@@ -1,4 +1,6 @@
 import { create } from 'zustand'
+import { effectiveSynthesizer, useAgentsStore } from './agentsStore'
+import { deriveTurnStats } from '@renderer/lib/turnStats'
 import type {
   DeliberationNotice,
   Message,
@@ -55,6 +57,18 @@ export interface PendingAttachmentPreview {
   previewUrl: string | null
 }
 
+// A finished turn's stats, archived when the next turn starts so follow-up
+// questions stack in the stats rail instead of wiping the numbers
+export interface TurnStats {
+  turn: number
+  input: number
+  output: number
+  cost: number
+  elapsedMs: number
+  rounds: number
+  converged: boolean | null
+}
+
 interface SessionState {
   sessions: Session[]
   activeSessionId: string | null
@@ -79,6 +93,9 @@ interface SessionState {
 
   // Non-fatal notices for the in-flight turn (e.g. "Web search skipped: ...")
   notices: string[]
+
+  // Prior turns of this app-session's view of the chat (survives resetStreams)
+  turnStats: TurnStats[]
 
   loadSessions: () => Promise<void>
   setActiveSession: (id: string | null) => Promise<void>
@@ -187,6 +204,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   deliberationStartedAt: null,
   deliberationEndedAt: null,
   notices: [],
+  turnStats: [],
 
   loadSessions: async () => {
     const sessions = await window.elrond.getSessions()
@@ -194,7 +212,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   setActiveSession: async (id) => {
-    set({ activeSessionId: id })
+    set({ activeSessionId: id, turnStats: [] })
     if (id) {
       const messages = await window.elrond.getMessages(id)
       set({ messages })
@@ -234,6 +252,46 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   startDeliberation: (prompt, attachments) => {
+    // Archive the finished turn before the reset wipes its live state, so
+    // follow-up questions stack in the stats rail instead of zeroing it
+    const state = get()
+    if (state.deliberationStartedAt !== null) {
+      const { agents, synthesizerAgentId } = useAgentsStore.getState()
+      const totals = deriveTurnStats({
+        enabledAgents: agents.filter((a) => a.enabled),
+        synthesizerAgent: effectiveSynthesizer({ agents, synthesizerAgentId }),
+        agentStreams: state.agentStreams,
+        debateRounds: state.debateRounds,
+        synthesisStream: state.synthesisStream,
+        callInputTokens: state.callInputTokens,
+        isDeliberating: false,
+        currentPhase: null
+      })
+      if (totals.input + totals.output > 0) {
+        const lastVerdict =
+          state.debateRounds.length > 0
+            ? state.debateRounds[state.debateRounds.length - 1].verdict
+            : null
+        set({
+          turnStats: [
+            ...state.turnStats,
+            {
+              turn: state.turnStats.length + 1,
+              input: totals.input,
+              output: totals.output,
+              cost: totals.cost,
+              elapsedMs: Math.max(
+                0,
+                (state.deliberationEndedAt ?? Date.now()) - state.deliberationStartedAt
+              ),
+              rounds: state.debateRounds.length,
+              converged: lastVerdict?.converged ?? null
+            }
+          ]
+        })
+      }
+    }
+
     get().resetStreams()
     revokePreviews(get().currentAttachments)
     set({
