@@ -253,6 +253,9 @@ export interface DeliberationRequest {
   repoFullName?: string
   attachments?: AttachmentPayload[]
   webSearch?: boolean
+  // Attach connected MCP servers' tools to the agents. Omitted = enabled;
+  // the renderer sends an explicit false when the user disarms the toggle.
+  mcpTools?: boolean
 }
 
 export interface ElrondAPI {

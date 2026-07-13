@@ -57,7 +57,10 @@ export function buildNamespacedTools(
     }
     tools.push({
       name,
-      description: tool.description ?? '',
+      // Scope the description: server-authored ones ("Search documentation")
+      // read as general-purpose to small models, which then query an issue
+      // tracker for world knowledge
+      description: `[${serverName} workspace data only — not general knowledge] ${tool.description ?? ''}`,
       inputSchema: tool.inputSchema
     })
     toolIndex.set(name, { serverId, serverName, toolName: tool.name })

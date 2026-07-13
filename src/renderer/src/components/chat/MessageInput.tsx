@@ -9,6 +9,7 @@ import { Badge } from '@renderer/components/ui/badge'
 import { ScrollArea } from '@renderer/components/ui/scroll-area'
 import { cn, formatBytes } from '@renderer/lib/utils'
 import { useIndexingStore, isIndexing, INDEX_STAGE_LABELS } from '@renderer/stores/indexingStore'
+import { useMcpStore } from '@renderer/stores/mcpStore'
 import {
   Send,
   StopCircle,
@@ -22,7 +23,8 @@ import {
   FileText,
   Globe,
   Check,
-  Download
+  Download,
+  Plug
 } from 'lucide-react'
 import type { GitHubRepo, IndexedRepo } from '@shared/types'
 
@@ -84,6 +86,12 @@ export function MessageInput(): React.JSX.Element {
   const [attachError, setAttachError] = useState<string | null>(null)
   const [isDragOver, setIsDragOver] = useState(false)
   const [webSearchArmed, setWebSearchArmed] = useState(false)
+  // Sticky, unlike the web-search toggle: disarming keeps MCP tools out of
+  // every message until re-armed (small models misuse off-topic tools)
+  const [mcpArmed, setMcpArmed] = useState(() => localStorage.getItem('elrond:mcpArmed') !== 'false')
+  const mcpAvailable = useMcpStore((s) =>
+    s.servers.some((sv) => sv.enabled && sv.status === 'connected')
+  )
   const [caretPos, setCaretPos] = useState(0)
   const [commandIndex, setCommandIndex] = useState(0)
   const [commandsDismissed, setCommandsDismissed] = useState(false)
@@ -339,12 +347,14 @@ export function MessageInput(): React.JSX.Element {
         mimeType: a.mimeType,
         data: a.data
       })),
-      webSearch: webSearchToSend || undefined
+      webSearch: webSearchToSend || undefined,
+      mcpTools: mcpArmed
     })
   }, [
     input,
     attachments,
     webSearchArmed,
+    mcpArmed,
     isDeliberating,
     activeSessionId,
     sessions,
@@ -665,6 +675,27 @@ export function MessageInput(): React.JSX.Element {
             >
               <Globe className="h-4 w-4" />
             </Button>
+            {mcpAvailable && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className={cn('h-8 w-8', mcpArmed && 'bg-primary/15 text-primary')}
+                onClick={() =>
+                  setMcpArmed((v) => {
+                    localStorage.setItem('elrond:mcpArmed', String(!v))
+                    return !v
+                  })
+                }
+                disabled={isDeliberating}
+                title={
+                  mcpArmed
+                    ? 'MCP tools on — agents can call your connected servers (click to turn off; stays off)'
+                    : 'MCP tools off — agents will not call your connected servers (click to turn on)'
+                }
+              >
+                <Plug className="h-4 w-4" />
+              </Button>
+            )}
             <Button
               variant="ghost"
               size="icon"
@@ -708,6 +739,7 @@ export function MessageInput(): React.JSX.Element {
             <span className="font-mono text-primary/70">/github</span>
             {' to query a repo'}
             {webSearchArmed && <span className="text-primary"> · Web search on</span>}
+            {mcpAvailable && mcpArmed && <span className="text-primary"> · MCP tools on</span>}
           </span>
           {enabledAgents.length === 0 ? (
             <span className="text-[10px] text-amber-400">

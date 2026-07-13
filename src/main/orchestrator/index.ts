@@ -311,21 +311,24 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
     }
 
     // MCP tools — non-fatal like web search: agents deliberate without tools
-    // if no server is connected or the manager fails
+    // if no server is connected or the manager fails. The renderer's plug
+    // toggle sends an explicit false to keep tools out of unrelated chats.
     let mcpTools: NamespacedTools | null = null
-    try {
-      const allTools = await mcpListAllTools()
-      if (allTools.length > 0) {
-        mcpTools = buildNamespacedTools(allTools)
-        // Name the connected services: an unscoped "use tools for live data"
-        // nudge makes small models hallucinate tool calls (e.g. querying an
-        // issue tracker for sports trivia)
-        const serverNames = [...new Set(allTools.map((t) => t.serverName))].join(', ')
-        fullSystemPrompt =
-          `${fullSystemPrompt}\n\nYou have tools connected from: ${serverNames}. Use them only when the question involves those services or their data. For unrelated questions, ignore the tools and answer directly — never invent tool names, arguments, or IDs, and never mention tooling mechanics in your answer.`.trim()
+    if (request.mcpTools !== false) {
+      try {
+        const allTools = await mcpListAllTools()
+        if (allTools.length > 0) {
+          mcpTools = buildNamespacedTools(allTools)
+          // Small models over-trigger on tools and let the mere mention of a
+          // service bleed into answers — the policy must make own-knowledge the
+          // default, say what the tools are NOT, and ban unprompted mentions
+          const serverNames = [...new Set(allTools.map((t) => t.serverName))].join(', ')
+          fullSystemPrompt =
+            `${fullSystemPrompt}\n\nTool policy: you have function tools from these connected services: ${serverNames}. They expose only that service's own data (issues, documents, files) — they are not a search engine and know nothing about the wider world. Default to answering from your own knowledge. Call a tool only when the user explicitly asks about one of these services or data stored in them. If tool output does not answer the question, say so and answer from your own knowledge. Never mention these services, the tools, or tool mechanics unless the user asked about them.`.trim()
+        }
+      } catch (err) {
+        send('stream:notice', { message: `MCP tools unavailable: ${cleanErrorMessage(err)}` })
       }
-    } catch (err) {
-      send('stream:notice', { message: `MCP tools unavailable: ${cleanErrorMessage(err)}` })
     }
 
     if (fullSystemPrompt) {
