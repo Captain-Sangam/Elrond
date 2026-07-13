@@ -21,6 +21,20 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Tools are active during initial answers and debate rounds (agents can verify each other's claims); the moderator verdict and synthesis run tool-free
 - Live tool-call chips in the agent panels while streaming (running spinner → check/error, args and result previews on hover)
 - Ollama models without tool support degrade gracefully: one notice, plain answer, no repeated failed requests
+- Sticky plug toggle in the message input arms/detaches MCP tools per chat (persisted, on by default), backed by a strict tool policy and `[<server> workspace data only]` description prefixes — keeps small local models from querying an issue tracker for world knowledge
+
+**Stats Rail Rework**
+
+- Pinned totals card: total tokens (in/out split), estimated cost, and total elapsed time across every turn — follow-up questions stack as full per-turn cards (tokens, cost, duration, consensus) in a scrollable list instead of resetting the rail to zero
+- Footer "Turns" counts across all sessions (new `stats:lifetime` query); the redundant output-only "Session generated" row is gone
+
+### Fixed
+
+- Linear MCP preset points at the current `mcp.linear.app/mcp` endpoint — the `/sse` endpoint was retired upstream and 404s; existing configured rows are migrated automatically
+- Gemini agents no longer 400 out of tool-using deliberations: Gemini 3.x thought signatures are captured from the stream and echoed back with each tool call, tool schemas are sanitized to Gemini's stricter parameter format, and any remaining tools-related 400 degrades that agent to a tool-free answer with a notice
+- OpenAI model dropdown includes the GPT-5 family and no longer lists non-chat models (image/tts/transcribe/codex/-pro variants)
+- The synthesizer control in the Agents dialog is a labeled amber pill — the old icon-only button's active state was invisible in dark mode
+- MCP connection errors surface the actual error line from stderr crash dumps instead of trailing JSON fragments
 
 ### Technical
 
