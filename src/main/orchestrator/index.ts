@@ -317,9 +317,12 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
       const allTools = await mcpListAllTools()
       if (allTools.length > 0) {
         mcpTools = buildNamespacedTools(allTools)
-        // Recent models under-trigger tools without an explicit nudge
+        // Name the connected services: an unscoped "use tools for live data"
+        // nudge makes small models hallucinate tool calls (e.g. querying an
+        // issue tracker for sports trivia)
+        const serverNames = [...new Set(allTools.map((t) => t.serverName))].join(', ')
         fullSystemPrompt =
-          `${fullSystemPrompt}\n\nYou have access to external tools. Call a tool whenever the answer depends on live data, files, or systems you cannot see directly; otherwise answer from context.`.trim()
+          `${fullSystemPrompt}\n\nYou have tools connected from: ${serverNames}. Use them only when the question involves those services or their data. For unrelated questions, ignore the tools and answer directly — never invent tool names, arguments, or IDs, and never mention tooling mechanics in your answer.`.trim()
       }
     } catch (err) {
       send('stream:notice', { message: `MCP tools unavailable: ${cleanErrorMessage(err)}` })
