@@ -24,21 +24,27 @@ src/
     github/                      GitHub integration
       index.ts                   Repo listing, cloning, file indexing
       tools.ts                   Live API tools (PRs, commits, issues, etc.)
+    mcp/                         MCP server connectivity
+      manager.ts                 Connection lifecycle, listAllTools/callTool API
+      store.ts                   Config persistence + Keychain secret resolution
+      shellEnv.ts                Login-shell PATH for spawning npx
     ipc/                         IPC handlers (renderer ↔ main bridge)
       keys.ts                    Keychain CRUD
       sessions.ts                Session/message DB ops
       settings.ts                Settings DB ops
       agents.ts                  Deliberation orchestration
       github.ts                  GitHub API handlers
+      mcp.ts                     MCP server CRUD + directory picker
       shortcut.ts                Global shortcut management
     orchestrator/                Deliberation pipeline
       providers/                 AI provider adapters
-        types.ts                 AgentProvider interface
-        openai.ts                OpenAI streaming
-        anthropic.ts             Anthropic streaming
-        google.ts                Google Gemini streaming
+        types.ts                 AgentProvider interface, tool types, chunk union
+        openai.ts                OpenAI streaming + tool calling
+        anthropic.ts             Anthropic streaming + tool calling
+        google.ts                Google Gemini streaming + tool calling
         ollama.ts                Local Ollama streaming (OpenAI-compatible /v1)
       prompts.ts                 Debate + synthesis prompt templates
+      toolLoop.ts                Agentic loop: stream → call MCP tools → re-stream
       index.ts                   Pipeline controller (fan-out, debate, synthesis)
     agentStore.ts                Agent configs (persistence, validation, seeding)
     keychain.ts                  macOS Keychain wrapper (keytar)
@@ -51,6 +57,7 @@ src/
           AgentPanel.tsx         Individual agent response panel
           DebatePanel.tsx        Collapsible debate round
           SynthesisPanel.tsx     Final synthesis (prominent styling)
+          ToolCallChips.tsx      Inline MCP tool-call chips in streaming panels
           MarkdownContent.tsx    Shared markdown renderer (syntax highlighting, tables)
           MessageInput.tsx       Prompt input with /github slash command
           SessionView.tsx        Main chat area orchestrating all panels
@@ -63,6 +70,8 @@ src/
           AgentsDialog.tsx       Agent management (assignments + provider status)
         settings/
           SettingsDialog.tsx     All settings (keys, Ollama server, GitHub, shortcuts)
+          MCPManager.tsx         MCP tab: preset gallery + server list
+          MCPServerFormDialog.tsx  Add/edit custom MCP servers
         onboarding/
           SetupWizard.tsx        First-launch setup flow
         ui/                      shadcn/ui primitive components
@@ -70,11 +79,13 @@ src/
         sessionStore.ts          Zustand: sessions, messages, streaming state
         settingsStore.ts         Zustand: preferences
         agentsStore.ts           Zustand: agents, synthesizer, Ollama connection
+        mcpStore.ts              Zustand: MCP servers + live connection status
       lib/
         utils.ts                 Tailwind merge, formatters, cost estimation
         providers.ts             Provider labels/colors, agent metadata resolution
   shared/
     types.ts                     Types shared between main + renderer
+    mcpPresets.ts                Out-of-the-box MCP server presets
 ```
 
 ## Adding a New AI Provider
@@ -86,7 +97,12 @@ The most common contribution. Each provider implements the `AgentProvider` inter
 Create `src/main/orchestrator/providers/yourprovider.ts`:
 
 ```typescript
-import type { AgentProvider, ChatMessage, StreamChunk } from "./types";
+import type {
+  AgentProvider,
+  ChatMessage,
+  StreamChatOptions,
+  StreamChunk,
+} from "./types";
 
 export class YourProvider implements AgentProvider {
   readonly name = "yourprovider";
@@ -95,11 +111,18 @@ export class YourProvider implements AgentProvider {
     messages: ChatMessage[],
     model: string,
     credential: string,
-    signal?: AbortSignal,
+    options?: StreamChatOptions,
   ): AsyncIterable<StreamChunk> {
     // credential is the API key for cloud providers. Keyless local providers
     // receive their server base URL here instead (see ollama.ts).
-    // Stream responses, yielding { delta: string } for each chunk
+    //
+    // options carries { signal, tools }. Yield { type: 'text', delta } for
+    // text chunks. If the provider supports function calling, pass
+    // options.tools through in its native format and yield
+    // { type: 'tool_call', call: { id, name, argsJson } } once per completed
+    // call (see openai.ts for the delta-assembly pattern). Messages may
+    // include role 'tool' results and assistant turns with toolCalls —
+    // serialize both to the provider's native shape.
   }
 }
 
@@ -160,6 +183,15 @@ Add an entry to the `TOOL_PATTERNS` array in the same file:
 ```
 
 The orchestrator will automatically detect the keywords in user prompts and call your tool when a repo is attached.
+
+## Adding an MCP Preset
+
+Presets are the out-of-the-box cards in Settings → MCP. Add an entry to `MCP_PRESETS` in `src/shared/mcpPresets.ts`:
+
+- `transport` is either `{ type: 'stdio', command, args, env }` or `{ type: 'http', url, headers }`
+- Slots whose value is `MCP_SECRET_SENTINEL` are filled from the Keychain at connect time; declare the matching input in `secretFields` (with an optional `valueTemplate` like `'Bearer {value}'`)
+- OAuth-only hosted servers should go through the `mcp-remote` stdio bridge (`npx -y mcp-remote <url>`) and set `oauthNote`
+- Add the preset id to the `MCPPresetId` union in `src/shared/types.ts` and an icon mapping in `MCPManager.tsx`
 
 ## Improving the Debate Prompts
 

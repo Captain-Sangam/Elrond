@@ -3,9 +3,37 @@ export type ContentPart =
   | { type: 'image'; mimeType: string; data: string } // data = base64, no data: prefix
   | { type: 'file'; mimeType: string; data: string; fileName: string }
 
+// A tool exposed to the model. Names are namespaced per MCP server
+// (`serverslug__toolname`) and already sanitized to the strictest provider
+// naming rules (^[a-zA-Z0-9_-]{1,64}$).
+export interface ToolDefinition {
+  name: string
+  description: string
+  inputSchema: Record<string, unknown>
+}
+
+// One tool invocation emitted by the model. `id` pairs the call with its
+// result message; Gemini has no native ids so the provider synthesizes one.
+export interface ToolCall {
+  id: string
+  name: string
+  argsJson: string // raw JSON string; '' means no arguments
+  // Gemini 3.x: opaque reasoning signature that MUST be echoed back verbatim
+  // on the functionCall part in later turns, or the API 400s
+  thoughtSignature?: string
+}
+
 export interface ChatMessage {
-  role: 'system' | 'user' | 'assistant'
+  role: 'system' | 'user' | 'assistant' | 'tool'
   content: string | ContentPart[]
+  // assistant only: tool calls this turn made (serialized natively per provider)
+  toolCalls?: ToolCall[]
+  // tool only: which call this result answers
+  toolCallId?: string
+  // tool only: Gemini pairs results by function name, not id
+  toolName?: string
+  // tool only: the call failed; providers surface this natively where supported
+  isError?: boolean
 }
 
 // Flattens content to plain text for provider slots that only accept strings
@@ -18,8 +46,29 @@ export function contentToText(content: string | ContentPart[]): string {
     .join('\n')
 }
 
-export interface StreamChunk {
-  delta: string
+export type StreamChunk =
+  | { type: 'text'; delta: string }
+  // Emitted once per call, after its arguments JSON has fully streamed
+  | { type: 'tool_call'; call: ToolCall }
+
+export interface StreamChatOptions {
+  signal?: AbortSignal
+  tools?: ToolDefinition[]
+}
+
+// Thrown when a model rejects the tools parameter outright — the caller
+// retries without tools. `cacheable` marks rejections inherent to the model
+// (e.g. Ollama models without a tool template) that should skip tools for the
+// rest of the session; schema-specific rejections pass false.
+export class ToolsUnsupportedError extends Error {
+  constructor(
+    model: string,
+    message?: string,
+    readonly cacheable = true
+  ) {
+    super(message ?? `${model} does not support tools`)
+    this.name = 'ToolsUnsupportedError'
+  }
 }
 
 export interface AgentProvider {
@@ -30,6 +79,6 @@ export interface AgentProvider {
     messages: ChatMessage[],
     model: string,
     credential: string,
-    signal?: AbortSignal
+    options?: StreamChatOptions
   ): AsyncIterable<StreamChunk>
 }

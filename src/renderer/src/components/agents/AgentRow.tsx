@@ -62,13 +62,23 @@ export function AgentRow({
         {/* The name is derived from provider:model — it can never drift */}
         <span className="min-w-0 flex-1 truncate font-mono text-xs font-medium">{agent.name}</span>
         <Button
-          variant="ghost"
-          size="icon"
-          className={cn('h-7 w-7', isSynthesizer && 'text-primary')}
+          variant="outline"
+          size="sm"
+          className={cn(
+            'h-7 gap-1 text-xs',
+            isSynthesizer
+              ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 hover:text-amber-400'
+              : 'text-muted-foreground'
+          )}
           onClick={() => setSynthesizer(agent.id)}
-          title={isSynthesizer ? 'This agent is the synthesizer' : 'Make this agent the synthesizer'}
+          title={
+            isSynthesizer
+              ? 'This agent moderates debates and writes the final answer'
+              : 'Make this agent the synthesizer — it moderates debates and writes the final answer'
+          }
         >
-          <Sparkles className="h-3.5 w-3.5" />
+          <Sparkles className={cn('h-3 w-3', isSynthesizer && 'fill-current')} />
+          Synthesizer
         </Button>
         <Button
           variant={agent.enabled ? 'default' : 'outline'}

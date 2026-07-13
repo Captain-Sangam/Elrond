@@ -13,3 +13,10 @@ export async function setApiKey(provider: string, key: string): Promise<void> {
 export async function deleteApiKey(provider: string): Promise<void> {
   await keytar.deletePassword(SERVICE_NAME, provider)
 }
+
+// All account names stored under the app's Keychain service — lets callers
+// sweep prefixed entries (e.g. every `mcp:<serverId>:*` secret on delete)
+export async function findCredentialAccounts(): Promise<string[]> {
+  const creds = await keytar.findCredentials(SERVICE_NAME)
+  return creds.map((c) => c.account)
+}

@@ -9,6 +9,7 @@ import { Textarea } from '@renderer/components/ui/textarea'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@renderer/components/ui/select'
 import { Badge } from '@renderer/components/ui/badge'
 import { GitHubRepoManager } from './GitHubRepoManager'
+import { MCPManager } from './MCPManager'
 import { Check, Loader2, Key, AlertTriangle, GitBranch, Globe, Server, RefreshCw } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
 
@@ -165,6 +166,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
             <TabsTrigger value="providers">Providers</TabsTrigger>
             <TabsTrigger value="github">GitHub</TabsTrigger>
             <TabsTrigger value="websearch">Web Search</TabsTrigger>
+            <TabsTrigger value="mcp">MCP</TabsTrigger>
           </TabsList>
 
           {/* ------------------------------------------------ General */}
@@ -523,6 +525,11 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 </p>
               </div>
             </section>
+          </TabsContent>
+
+          {/* ------------------------------------------------ MCP */}
+          <TabsContent value="mcp" className="space-y-4 pt-4">
+            <MCPManager active={activeTab === 'mcp'} />
           </TabsContent>
         </Tabs>
       </DialogContent>

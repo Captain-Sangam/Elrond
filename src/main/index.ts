@@ -7,6 +7,7 @@ import { initDatabase } from './db'
 import { getDb } from './db'
 import { getAttachmentsDir } from './attachments'
 import { seedAgentsIfNeeded } from './agentStore'
+import { initMcpManager, shutdownMcpManager } from './mcp/manager'
 
 let mainWindow: BrowserWindow | null = null
 let tray: Tray | null = null
@@ -205,6 +206,7 @@ app.whenReady().then(async () => {
   await seedAgentsIfNeeded()
   registerAttachmentProtocol()
   registerAllIpcHandlers()
+  initMcpManager()
   createWindow()
   createTray()
   registerGlobalShortcut()
@@ -222,6 +224,7 @@ app.on('window-all-closed', () => {
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
+  shutdownMcpManager()
 })
 
 export { mainWindow }

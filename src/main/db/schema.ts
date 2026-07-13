@@ -60,6 +60,15 @@ export function runMigrations(db: Database.Database): void {
       FOREIGN KEY (message_id) REFERENCES messages(id) ON DELETE CASCADE
     );
 
+    CREATE TABLE IF NOT EXISTS mcp_servers (
+      id TEXT PRIMARY KEY,
+      name TEXT NOT NULL,
+      transport TEXT NOT NULL,
+      enabled INTEGER NOT NULL DEFAULT 1,
+      source TEXT NOT NULL DEFAULT 'custom',
+      created_at TEXT NOT NULL DEFAULT (datetime('now'))
+    );
+
     CREATE INDEX IF NOT EXISTS idx_attachments_message ON attachments(message_id);
     CREATE INDEX IF NOT EXISTS idx_messages_session ON messages(session_id);
     CREATE INDEX IF NOT EXISTS idx_sessions_updated ON sessions(updated_at DESC);
@@ -153,6 +162,12 @@ export function runMigrations(db: Database.Database): void {
   // on it to the rolling alias so every request doesn't 404
   db.exec(
     "UPDATE settings SET value = 'gemini-pro-latest' WHERE key = 'google_model' AND value = 'gemini-1.5-pro'"
+  )
+
+  // Linear retired its SSE MCP endpoint (404s now) — move existing preset
+  // rows to the streamable-HTTP endpoint
+  db.exec(
+    "UPDATE mcp_servers SET transport = replace(transport, 'https://mcp.linear.app/sse', 'https://mcp.linear.app/mcp') WHERE source = 'linear'"
   )
 
   seedDefaults(db)

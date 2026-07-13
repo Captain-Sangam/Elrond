@@ -137,6 +137,24 @@ export interface DeliberationNotice {
   message: string
 }
 
+// Lifecycle of one MCP tool call inside an agent's stream (channel 'stream:tool').
+// Upserted by callId: 'running' first, then 'ok' or 'error'.
+export interface StreamToolEvent {
+  agentId: string
+  agentName: string
+  provider: ProviderName
+  phase: StreamPhase
+  round?: number
+  callId: string
+  toolName: string
+  serverName: string
+  status: 'running' | 'ok' | 'error'
+  argsPreview?: string
+  resultPreview?: string
+  errorMessage?: string
+  durationMs?: number
+}
+
 // Progress of a repo indexing run (channel 'github:indexProgress').
 // Keyed by the GitHub numeric id — the IndexedRepo uuid doesn't exist yet
 // during the 'cloning' stage.
@@ -160,6 +178,69 @@ export interface ModeratorVerdictEvent {
   outputTokens: number
 }
 
+// ---------------------------------------------------------------------------
+// MCP (Model Context Protocol) servers
+
+export type MCPPresetId = 'linear' | 'notion' | 'github' | 'sentry' | 'context7' | 'filesystem'
+
+// Placeholder stored in env/header slots whose real value lives in the macOS
+// Keychain under account `mcp:<serverId>:<fieldName>`. Configs holding this
+// sentinel are safe to persist in SQLite and send to the renderer.
+export const MCP_SECRET_SENTINEL = '__KEYCHAIN__'
+
+export type MCPTransport =
+  | { type: 'stdio'; command: string; args: string[]; env: Record<string, string> }
+  | { type: 'http'; url: string; headers: Record<string, string> }
+
+export interface MCPServerConfig {
+  id: string
+  name: string
+  transport: MCPTransport
+  enabled: boolean
+  source: MCPPresetId | 'custom'
+  created_at: string
+}
+
+export type MCPConnectionStatus = 'disconnected' | 'connecting' | 'connected' | 'error'
+
+// Config plus runtime connection state — what the renderer renders
+export interface MCPServerInfo extends MCPServerConfig {
+  status: MCPConnectionStatus
+  toolCount: number
+  lastError?: string
+}
+
+export interface MCPToolInfo {
+  name: string
+  description?: string
+  inputSchema: Record<string, unknown>
+}
+
+// Pushed on channel 'mcp:statusChanged'
+export interface MCPStatusEvent {
+  serverId: string
+  status: MCPConnectionStatus
+  toolCount?: number
+  error?: string
+}
+
+// Renderer -> main create/update payload. Secret values ride in `secrets`
+// (keyed by env var / header name) and never come back; the transport carries
+// MCP_SECRET_SENTINEL in those slots.
+export interface MCPServerInput {
+  name: string
+  transport: MCPTransport
+  enabled: boolean
+  source: MCPPresetId | 'custom'
+  secrets?: Record<string, string>
+}
+
+// App-lifetime stats across all sessions (channel 'stats:lifetime')
+export interface LifetimeStats {
+  turns: number
+  tokensGenerated: number
+}
+
 export interface DeliberationRequest {
   sessionId: string
   prompt: string
@@ -172,6 +253,9 @@ export interface DeliberationRequest {
   repoFullName?: string
   attachments?: AttachmentPayload[]
   webSearch?: boolean
+  // Attach connected MCP servers' tools to the agents. Omitted = enabled;
+  // the renderer sends an explicit false when the user disarms the toggle.
+  mcpTools?: boolean
 }
 
 export interface ElrondAPI {
@@ -194,6 +278,7 @@ export interface ElrondAPI {
   updateSession: (id: string, updates: Partial<Pick<Session, 'title' | 'starred'>>) => Promise<void>
   deleteSession: (id: string) => Promise<void>
   searchSessions: (query: string) => Promise<Session[]>
+  getLifetimeStats: () => Promise<LifetimeStats>
 
   // Messages
   getMessages: (sessionId: string) => Promise<Message[]>
@@ -240,6 +325,18 @@ export interface ElrondAPI {
   // Window
   setGlobalShortcut: (shortcut: string) => Promise<boolean>
   getGlobalShortcut: () => Promise<string>
+
+  // MCP servers
+  listMcpServers: () => Promise<MCPServerInfo[]>
+  addMcpServer: (input: MCPServerInput) => Promise<MCPServerInfo>
+  updateMcpServer: (id: string, input: MCPServerInput) => Promise<MCPServerInfo>
+  deleteMcpServer: (id: string) => Promise<void>
+  setMcpServerEnabled: (id: string, enabled: boolean) => Promise<void>
+  reconnectMcpServer: (id: string) => Promise<void>
+  listMcpTools: (serverId: string) => Promise<MCPToolInfo[]>
+  pickMcpDirectories: () => Promise<string[] | null>
+  onMcpStatusChanged: (callback: (event: MCPStatusEvent) => void) => () => void
+  onStreamTool: (callback: (event: StreamToolEvent) => void) => () => void
 }
 
 declare global {

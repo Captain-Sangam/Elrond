@@ -47,6 +47,18 @@
 | Contributors                        | "Who are the top contributors?"        |
 | Source Code (indexed repos)         | "How does the auth middleware work?"   |
 
+## MCP Tools
+
+- Connect [Model Context Protocol](https://modelcontextprotocol.io) servers in Settings → MCP; agents call their tools natively mid-deliberation (all four providers, including tool-capable Ollama models)
+- Six presets ship out of the box: **Linear**, **Notion**, **GitHub**, **Sentry**, **Context7** (library docs), and **Filesystem** (local folders you pick)
+- Linear, Notion, and Sentry authenticate via browser OAuth on first connect (through the `mcp-remote` bridge — requires `npx`); GitHub and Context7 take an API key; Filesystem needs no auth
+- Custom servers: any stdio command or Streamable HTTP endpoint, with env vars / headers — values marked "Secret" are stored in the macOS Keychain, never in the database
+- Active-server list with live status badges (Connecting / Connected / Error), expandable tool lists, enable/disable toggles, and reconnect
+- Tool calls appear as inline chips in the agent panels while streaming (spinner → check or error, with args/result previews on hover)
+- Tools are active during initial answers and debate rounds — agents can verify each other's claims against live data; the moderator and synthesis stay tool-free
+- A sticky plug toggle in the message input arms or detaches MCP tools (persisted, on by default) — turn it off for chats unrelated to your connected services, especially with small local models
+- Bounded and non-fatal: max 8 tool iterations per agent turn, results truncated at ~16k chars, failures fed back to the model as errors; models without tool support fall back to a plain answer with a notice
+
 ## Web Search
 
 - Globe toggle in the message input arms a live web search for that message
@@ -58,7 +70,7 @@
 
 - macOS-native window with hidden titlebar and traffic lights
 - Session sidebar with search, starring, rename, delete
-- Live stats rail (toggle in the top bar): tokens burnt per phase and per debate round, in/out split, estimated cost, elapsed timer, and consensus outcome — updating in real time as agents stream
+- Live stats rail (toggle in the top bar): pinned session totals (tokens, in/out split, cost, total time), a full card per turn with phase-by-phase breakdown on the live turn, consensus outcomes, and an all-sessions turn counter — turns stack instead of resetting on follow-up questions
 - Scroll freely while agents stream — auto-follow only when pinned to the bottom, with a jump-to-bottom button
 - Collapsible debate rounds with per-round moderator verdicts
 - Syntax-highlighted code blocks (One Dark theme) with copy buttons
@@ -70,7 +82,7 @@
 
 ## Settings
 
-- Tabbed dialog: General, Providers, GitHub, Web Search
+- Tabbed dialog: General, Providers, GitHub, Web Search, MCP
 - Cloud API keys with test buttons; Ollama server URL with test connection + model list
 - Per-agent model selection lives in the Agents dialog (live dropdowns from each provider)
 - Debate toggle and max debate rounds (1–5)
@@ -78,6 +90,7 @@
 - Submit key preference (Cmd+Enter or Enter)
 - GitHub token, organizations, and full repo index management
 - Tavily API key for web search
+- MCP server management: preset gallery, custom servers, secrets in Keychain, live connection status
 - Danger zone: clear history, reset keys
 
 ## Cost Awareness

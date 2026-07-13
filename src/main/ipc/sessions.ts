@@ -11,6 +11,16 @@ export function registerSessionsHandlers(): void {
     return db.prepare('SELECT * FROM sessions ORDER BY updated_at DESC').all() as Session[]
   })
 
+  ipcMain.handle('stats:lifetime', () => {
+    const db = getDb()
+    const row = db
+      .prepare(
+        "SELECT COUNT(CASE WHEN role = 'user' THEN 1 END) AS turns, COALESCE(SUM(CASE WHEN role != 'user' THEN token_count END), 0) AS tokensGenerated FROM messages"
+      )
+      .get() as { turns: number; tokensGenerated: number }
+    return row
+  })
+
   ipcMain.handle('sessions:get', (_, id: string) => {
     const db = getDb()
     return db.prepare('SELECT * FROM sessions WHERE id = ?').get(id) as Session | undefined

@@ -20,6 +20,8 @@ import { getDb } from '../db'
 import { getRepoContext } from '../github'
 import { formatWebResults, searchWeb } from '../websearch'
 import { detectAndFetchToolsByFullName, detectRepoFromPrompt, formatToolResults } from '../github/tools'
+import { callTool as mcpCallTool, listAllTools as mcpListAllTools } from '../mcp/manager'
+import { buildNamespacedTools, runToolLoop, type NamespacedTools } from './toolLoop'
 import { v4 as uuidv4 } from 'uuid'
 
 const providers: Record<ProviderName, AgentProvider> = {
@@ -122,29 +124,41 @@ async function streamAgent(
   messages: ChatMessage[],
   phase: 'initial' | 'debate' | 'synthesis',
   signal: AbortSignal,
-  round?: number
+  round?: number,
+  mcpTools?: NamespacedTools | null
 ): Promise<{ content: string; tokenCount: number }> {
-  let fullContent = ''
-
   const credential = await resolveCredential(agent.provider)
   const ident = { agentId: agent.id, agentName: agent.name, provider: agent.provider }
 
+  // Synthesis merges already-debated positions — introducing new un-debated
+  // facts there would bypass the deliberation, so tools stay off
+  const withTools = !!mcpTools && mcpTools.tools.length > 0 && phase !== 'synthesis'
+
   send('stream:start', { ...ident, phase, round, inputTokens: estimateMessagesTokens(messages) })
 
-  try {
-    for await (const chunk of providers[agent.provider].streamChat(messages, agent.model, credential, signal)) {
-      if (signal.aborted) break
-      fullContent += chunk.delta
-      send('stream:token', { ...ident, delta: chunk.delta, phase, round })
-    }
-  } catch (err: unknown) {
-    if (signal.aborted) return { content: fullContent, tokenCount: estimateTokens(fullContent) }
-    throw err
-  }
+  const result = await runToolLoop({
+    provider: providers[agent.provider],
+    messages,
+    model: agent.model,
+    credential,
+    signal,
+    tools: withTools ? mcpTools!.tools : undefined,
+    toolIndex: withTools ? mcpTools!.toolIndex : undefined,
+    mcp: withTools ? { callTool: mcpCallTool } : undefined,
+    onText: (delta) => send('stream:token', { ...ident, delta, phase, round }),
+    onTool: (event) => send('stream:tool', { ...ident, phase, round, ...event }),
+    onNotice: (message) => send('stream:notice', { message: `${agent.name}: ${message}` }),
+    // Each loop iteration re-sends the whole grown conversation; re-emitting
+    // stream:start keeps the renderer's input-token estimate cumulative
+    onIterationStart: (msgs) =>
+      send('stream:start', { ...ident, phase, round, inputTokens: estimateMessagesTokens(msgs) })
+  })
 
-  const tokenCount = estimateTokens(fullContent)
-  send('stream:done', { ...ident, fullContent, tokenCount, phase, round })
-  return { content: fullContent, tokenCount }
+  const tokenCount = estimateTokens(result.content)
+  if (!signal.aborted) {
+    send('stream:done', { ...ident, fullContent: result.content, tokenCount, phase, round })
+  }
+  return { content: result.content, tokenCount }
 }
 
 // Like streamAgent, but collects the full response without emitting any
@@ -157,9 +171,9 @@ async function collectCompletion(
   const credential = await resolveCredential(agent.provider)
 
   let fullContent = ''
-  for await (const chunk of providers[agent.provider].streamChat(messages, agent.model, credential, signal)) {
+  for await (const chunk of providers[agent.provider].streamChat(messages, agent.model, credential, { signal })) {
     if (signal.aborted) break
-    fullContent += chunk.delta
+    if (chunk.type === 'text') fullContent += chunk.delta
   }
   return fullContent
 }
@@ -296,6 +310,27 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
       }
     }
 
+    // MCP tools — non-fatal like web search: agents deliberate without tools
+    // if no server is connected or the manager fails. The renderer's plug
+    // toggle sends an explicit false to keep tools out of unrelated chats.
+    let mcpTools: NamespacedTools | null = null
+    if (request.mcpTools !== false) {
+      try {
+        const allTools = await mcpListAllTools()
+        if (allTools.length > 0) {
+          mcpTools = buildNamespacedTools(allTools)
+          // Small models over-trigger on tools and let the mere mention of a
+          // service bleed into answers — the policy must make own-knowledge the
+          // default, say what the tools are NOT, and ban unprompted mentions
+          const serverNames = [...new Set(allTools.map((t) => t.serverName))].join(', ')
+          fullSystemPrompt =
+            `${fullSystemPrompt}\n\nTool policy: you have function tools from these connected services: ${serverNames}. They expose only that service's own data (issues, documents, files) — they are not a search engine and know nothing about the wider world. Default to answering from your own knowledge. Call a tool only when the user explicitly asks about one of these services or data stored in them. If tool output does not answer the question, say so and answer from your own knowledge. Never mention these services, the tools, or tool mechanics unless the user asked about them.`.trim()
+        }
+      } catch (err) {
+        send('stream:notice', { message: `MCP tools unavailable: ${cleanErrorMessage(err)}` })
+      }
+    }
+
     if (fullSystemPrompt) {
       baseMessages.push({ role: 'system', content: fullSystemPrompt })
     }
@@ -333,7 +368,7 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
 
     const fanOutPromises = activeAgents.map(async (agent) => {
       try {
-        const result = await streamAgent(agent, baseMessages, 'initial', signal)
+        const result = await streamAgent(agent, baseMessages, 'initial', signal, undefined, mcpTools)
 
         insertAgentMessage('agent', agent, result.content, result.tokenCount, 0)
         initialResults.push({ agent, ...result })
@@ -402,7 +437,7 @@ export async function startDeliberation(request: DeliberationRequest): Promise<v
                 { role: 'user', content: debatePrompt }
               ]
 
-              const result = await streamAgent(ag.agent, messages, 'debate', signal, round)
+              const result = await streamAgent(ag.agent, messages, 'debate', signal, round, mcpTools)
               if (signal.aborted) return
 
               insertAgentMessage('debate', ag.agent, result.content, result.tokenCount, round)

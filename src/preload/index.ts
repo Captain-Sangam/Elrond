@@ -3,12 +3,14 @@ import type {
   DeliberationNotice,
   ElrondAPI,
   IndexProgressEvent,
+  MCPStatusEvent,
   ModeratorVerdictEvent,
   PhaseChange,
   StreamDone,
   StreamError,
   StreamStart,
-  StreamToken
+  StreamToken,
+  StreamToolEvent
 } from '../shared/types'
 
 const api: ElrondAPI = {
@@ -31,6 +33,7 @@ const api: ElrondAPI = {
   updateSession: (id, updates) => ipcRenderer.invoke('sessions:update', id, updates),
   deleteSession: (id) => ipcRenderer.invoke('sessions:delete', id),
   searchSessions: (query) => ipcRenderer.invoke('sessions:search', query),
+  getLifetimeStats: () => ipcRenderer.invoke('stats:lifetime'),
 
   // Messages
   getMessages: (sessionId) => ipcRenderer.invoke('messages:list', sessionId),
@@ -107,7 +110,27 @@ const api: ElrondAPI = {
 
   // Window
   setGlobalShortcut: (shortcut) => ipcRenderer.invoke('shortcut:set', shortcut),
-  getGlobalShortcut: () => ipcRenderer.invoke('shortcut:get')
+  getGlobalShortcut: () => ipcRenderer.invoke('shortcut:get'),
+
+  // MCP servers
+  listMcpServers: () => ipcRenderer.invoke('mcp:listServers'),
+  addMcpServer: (input) => ipcRenderer.invoke('mcp:addServer', input),
+  updateMcpServer: (id, input) => ipcRenderer.invoke('mcp:updateServer', id, input),
+  deleteMcpServer: (id) => ipcRenderer.invoke('mcp:deleteServer', id),
+  setMcpServerEnabled: (id, enabled) => ipcRenderer.invoke('mcp:setEnabled', id, enabled),
+  reconnectMcpServer: (id) => ipcRenderer.invoke('mcp:reconnect', id),
+  listMcpTools: (serverId) => ipcRenderer.invoke('mcp:listTools', serverId),
+  pickMcpDirectories: () => ipcRenderer.invoke('mcp:pickDirectory'),
+  onMcpStatusChanged: (callback) => {
+    const handler = (_: Electron.IpcRendererEvent, event: MCPStatusEvent) => callback(event)
+    ipcRenderer.on('mcp:statusChanged', handler)
+    return () => ipcRenderer.removeListener('mcp:statusChanged', handler)
+  },
+  onStreamTool: (callback) => {
+    const handler = (_: Electron.IpcRendererEvent, event: StreamToolEvent) => callback(event)
+    ipcRenderer.on('stream:tool', handler)
+    return () => ipcRenderer.removeListener('stream:tool', handler)
+  }
 }
 
 contextBridge.exposeInMainWorld('elrond', api)
