@@ -13,7 +13,7 @@ import { getApiKey, setApiKey, deleteApiKey } from '../keychain'
 // dynamic client registration, so it must be stable across app restarts
 const CALLBACK_PORT = 17872
 const CALLBACK_PATH = '/oauth/callback'
-export const AUTH_TIMEOUT_MS = 300_000 // user has 5 minutes to approve in the browser
+const AUTH_TIMEOUT_MS = 300_000 // user has 5 minutes to approve in the browser
 
 const CALLBACK_HTML = `<!doctype html><meta charset="utf-8"><title>Elrond</title>
 <body style="font-family:-apple-system,sans-serif;display:grid;place-items:center;height:90vh;background:#111;color:#eee">

@@ -92,7 +92,3 @@ export const MCP_PRESETS: MCPPreset[] = [
     needsDirectoryPicker: true
   }
 ]
-
-export function getPreset(id: string): MCPPreset | undefined {
-  return MCP_PRESETS.find((p) => p.id === id)
-}
