@@ -33,7 +33,7 @@ const GEMINI_SCHEMA_KEYS = ['type', 'description', 'properties', 'required', 'it
 // Lossy by design: unions degrade to their first non-null variant, and
 // properties that can't be represented (freeform objects) are dropped
 // entirely rather than lied about. Returns undefined for the unrepresentable.
-function sanitizeForGemini(schema: unknown): Record<string, unknown> | undefined {
+export function sanitizeForGemini(schema: unknown): Record<string, unknown> | undefined {
   if (!schema || typeof schema !== 'object' || Array.isArray(schema)) return undefined
   const src = schema as Record<string, unknown>
 
@@ -100,7 +100,7 @@ function sanitizeForGemini(schema: unknown): Record<string, unknown> | undefined
   return out
 }
 
-function toGoogleTools(tools: ToolDefinition[]): Tool[] {
+export function toGoogleTools(tools: ToolDefinition[]): Tool[] {
   const declarations = tools.map(
     (t) =>
       ({
@@ -113,7 +113,7 @@ function toGoogleTools(tools: ToolDefinition[]): Tool[] {
   return [{ functionDeclarations: declarations }]
 }
 
-function toGoogleContents(messages: ChatMessage[]): Content[] {
+export function toGoogleContents(messages: ChatMessage[]): Content[] {
   const contents: Content[] = []
   let lastWasTool = false
 

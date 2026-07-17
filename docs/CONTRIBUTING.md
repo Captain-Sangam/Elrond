@@ -205,12 +205,16 @@ The debate and synthesis prompts in `src/main/orchestrator/prompts.ts` are the m
 - shadcn/ui patterns for UI components
 - No unnecessary comments — code should be self-documenting
 - `npm run build` must pass with no errors
+- Unit tests live next to the module they cover (`src/**/*.test.ts`, run with
+  `npm test`) — pure logic such as prompt parsing, message converters,
+  formatters, and store reducers is expected to ship with tests
 
 ## Pull Request Process
 
 1. Create a feature branch from `main`
 2. Make your changes with clear commit messages
-3. Ensure the project builds: `npm run build`
+3. Ensure `npm run typecheck`, `npm test`, and `npm run build` all pass
+   (CI runs the same checks on every PR)
 4. Open a PR with a description of what changed and why
 
 ## Reporting Issues

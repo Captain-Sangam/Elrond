@@ -12,6 +12,7 @@ How was this implemented? Any notable design decisions?
 
 ## Testing
 
+- [ ] `npm test` passes
 - [ ] `npm run build` passes
 - [ ] Tested manually in the app
 - [ ] New provider/tool follows the existing patterns

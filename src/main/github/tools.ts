@@ -1,12 +1,7 @@
 import { getApiKey } from '../keychain'
 import { getDb } from '../db'
 
-interface GitHubHeaders {
-  Authorization: string
-  Accept: string
-}
-
-async function ghHeaders(): Promise<GitHubHeaders> {
+async function ghHeaders(): Promise<Record<string, string>> {
   const token = await getApiKey('github')
   if (!token) throw new Error('No GitHub token configured')
   return { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' }

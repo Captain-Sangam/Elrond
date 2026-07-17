@@ -9,7 +9,7 @@ import {
   type ToolDefinition
 } from './types'
 
-function toAnthropicBlock(part: ContentPart): Anthropic.Messages.ContentBlockParam {
+export function toAnthropicBlock(part: ContentPart): Anthropic.Messages.ContentBlockParam {
   switch (part.type) {
     case 'text':
       return { type: 'text', text: part.text }
@@ -44,7 +44,7 @@ function toAnthropicTools(tools: ToolDefinition[]): Anthropic.Messages.Tool[] {
   }))
 }
 
-function toAnthropicMessages(messages: ChatMessage[]): Anthropic.Messages.MessageParam[] {
+export function toAnthropicMessages(messages: ChatMessage[]): Anthropic.Messages.MessageParam[] {
   const result: Anthropic.Messages.MessageParam[] = []
   let lastWasTool = false
 
