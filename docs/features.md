@@ -53,6 +53,7 @@
 - Six presets ship out of the box: **Linear**, **Notion**, **GitHub**, **Sentry**, **Context7** (library docs), and **Filesystem** (local folders you pick)
 - Linear, Notion, and Sentry authenticate via browser OAuth on first connect (through the `mcp-remote` bridge — requires `npx`); GitHub and Context7 take an API key; Filesystem needs no auth
 - Custom servers: any stdio command or Streamable HTTP endpoint, with env vars / headers — values marked "Secret" are stored in the macOS Keychain, never in the database
+- HTTP servers that require OAuth just work: on first connect Elrond opens your browser to authorize (OAuth 2.1 with dynamic client registration + PKCE) and stores the tokens in the Keychain; configure an Authorization header instead to opt out of the browser flow
 - Active-server list with live status badges (Connecting / Connected / Error), expandable tool lists, enable/disable toggles, and reconnect
 - Tool calls appear as inline chips in the agent panels while streaming (spinner → check or error, with args/result previews on hover)
 - Tools are active during initial answers and debate rounds — agents can verify each other's claims against live data; the moderator and synthesis stay tool-free
