@@ -4,7 +4,7 @@ import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
-import { KeychainOAuthProvider, waitForAuthorizationCode } from './oauth'
+import { cancelPendingAuth, KeychainOAuthProvider, waitForAuthorizationCode } from './oauth'
 import type {
   MCPConnectionStatus,
   MCPServerConfig,
@@ -231,7 +231,7 @@ async function doConnect(server: ManagedServer): Promise<void> {
   }
 }
 
-export function connect(id: string): Promise<void> {
+function connect(id: string): Promise<void> {
   const server = servers.get(id)
   if (!server) return Promise.reject(new Error(`Unknown MCP server: ${id}`))
   if (server.status === 'connected') return Promise.resolve()
@@ -247,6 +247,10 @@ async function disconnect(server: ManagedServer): Promise<void> {
   server.generation += 1
   clearRetry(server)
   server.retryCount = 0
+  // A browser authorization may still be pending — stop waiting on it
+  if (server.oauthProvider?.lastState) {
+    cancelPendingAuth(server.oauthProvider.lastState)
+  }
   const client = server.client
   server.client = null
   server.tools = []
@@ -278,24 +282,23 @@ export function shutdownMcpManager(): void {
   }
 }
 
-export function getServerInfos(): MCPServerInfo[] {
-  return [...servers.values()].map((s) => ({
-    ...s.config,
-    status: s.status,
-    toolCount: s.tools.length,
-    lastError: s.lastError
-  }))
-}
-
-function getServerInfo(id: string): MCPServerInfo {
-  const server = servers.get(id)
-  if (!server) throw new Error(`Unknown MCP server: ${id}`)
+function toInfo(server: ManagedServer): MCPServerInfo {
   return {
     ...server.config,
     status: server.status,
     toolCount: server.tools.length,
     lastError: server.lastError
   }
+}
+
+export function getServerInfos(): MCPServerInfo[] {
+  return [...servers.values()].map(toInfo)
+}
+
+function getServerInfo(id: string): MCPServerInfo {
+  const server = servers.get(id)
+  if (!server) throw new Error(`Unknown MCP server: ${id}`)
+  return toInfo(server)
 }
 
 export async function addServer(input: MCPServerInput): Promise<MCPServerInfo> {
