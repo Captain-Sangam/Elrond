@@ -1,8 +1,10 @@
 import { app, BrowserWindow } from 'electron'
 import { Client } from '@modelcontextprotocol/sdk/client/index.js'
+import { UnauthorizedError } from '@modelcontextprotocol/sdk/client/auth.js'
 import { StdioClientTransport, getDefaultEnvironment } from '@modelcontextprotocol/sdk/client/stdio.js'
 import { StreamableHTTPClientTransport } from '@modelcontextprotocol/sdk/client/streamableHttp.js'
 import type { CallToolResult } from '@modelcontextprotocol/sdk/types.js'
+import { KeychainOAuthProvider, waitForAuthorizationCode } from './oauth'
 import type {
   MCPConnectionStatus,
   MCPServerConfig,
@@ -36,6 +38,9 @@ interface ManagedServer {
   stderrTail: string
   // Serializes tool calls per server — many stdio servers are effectively serial
   callQueue: Promise<unknown>
+  // Lazily created for HTTP servers with no configured auth header — drives
+  // browser OAuth (dynamic registration + PKCE, tokens in the Keychain)
+  oauthProvider: KeychainOAuthProvider | null
 }
 
 const servers = new Map<string, ManagedServer>()
@@ -69,7 +74,8 @@ function newManaged(config: MCPServerConfig): ManagedServer {
     retryCount: 0,
     generation: 0,
     stderrTail: '',
-    callQueue: Promise.resolve()
+    callQueue: Promise.resolve(),
+    oauthProvider: null
   }
 }
 
@@ -110,8 +116,17 @@ function describeError(server: ManagedServer, err: unknown): string {
 async function buildTransport(server: ManagedServer): Promise<StdioClientTransport | StreamableHTTPClientTransport> {
   const resolved = await store.resolveTransport(server.config)
   if (resolved.type === 'http') {
+    // A configured Authorization header means the user chose header auth —
+    // only header-less servers get the browser OAuth flow on 401
+    const hasAuthHeader = Object.keys(resolved.headers).some(
+      (h) => h.toLowerCase() === 'authorization'
+    )
+    if (!hasAuthHeader) {
+      server.oauthProvider ??= new KeychainOAuthProvider(server.config.id)
+    }
     return new StreamableHTTPClientTransport(new URL(resolved.url), {
-      requestInit: { headers: resolved.headers }
+      requestInit: { headers: resolved.headers },
+      authProvider: hasAuthHeader ? undefined : server.oauthProvider!
     })
   }
 
@@ -146,9 +161,29 @@ async function doConnect(server: ManagedServer): Promise<void> {
 
   let client: Client | null = null
   try {
-    const transport = await buildTransport(server)
+    let transport = await buildTransport(server)
     client = new Client({ name: 'elrond', version: app.getVersion() }, { capabilities: {} })
-    await withTimeout(client.connect(transport), CONNECT_TIMEOUT_MS, 'Connection timed out')
+    try {
+      await withTimeout(client.connect(transport), CONNECT_TIMEOUT_MS, 'Connection timed out')
+    } catch (err) {
+      // The transport already opened the browser and registered the client —
+      // wait for the loopback redirect, exchange the code, reconnect fresh
+      if (
+        err instanceof UnauthorizedError &&
+        transport instanceof StreamableHTTPClientTransport &&
+        server.oauthProvider?.lastState
+      ) {
+        const code = await waitForAuthorizationCode(server.oauthProvider.lastState)
+        if (generation !== server.generation) return
+        await transport.finishAuth(code)
+        void client.close().catch(() => {})
+        transport = await buildTransport(server)
+        client = new Client({ name: 'elrond', version: app.getVersion() }, { capabilities: {} })
+        await withTimeout(client.connect(transport), CONNECT_TIMEOUT_MS, 'Connection timed out')
+      } else {
+        throw err
+      }
+    }
 
     if (generation !== server.generation) {
       void client.close().catch(() => {})
@@ -187,7 +222,12 @@ async function doConnect(server: ManagedServer): Promise<void> {
     if (generation !== server.generation) return
     server.client = null
     setStatus(server, 'error', describeError(server, err))
-    scheduleRetry(server)
+    // Auto-retrying an authorization failure would reopen the browser on
+    // every attempt — the user restarts that flow via Reconnect instead
+    const authFailure =
+      err instanceof UnauthorizedError ||
+      (err instanceof Error && /authorization/i.test(err.message))
+    if (!authFailure) scheduleRetry(server)
   }
 }
 

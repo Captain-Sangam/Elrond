@@ -224,7 +224,7 @@ export class GoogleProvider implements AgentProvider {
             id: `call_${uuidv4()}`,
             name: part.functionCall.name,
             argsJson: JSON.stringify(part.functionCall.args ?? {}),
-            thoughtSignature: (part as Record<string, unknown>).thoughtSignature as string | undefined
+            thoughtSignature: (part as unknown as { thoughtSignature?: string }).thoughtSignature
           }
         }
       }

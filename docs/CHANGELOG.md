@@ -13,6 +13,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - New MCP tab in Settings: connect [Model Context Protocol](https://modelcontextprotocol.io) servers and manage them in an active-server list with live status badges, expandable tool lists, enable/disable toggles, and reconnect
 - Six out-of-the-box presets: Linear, Notion, GitHub, Sentry, Context7, Filesystem. Linear/Notion/Sentry authenticate via browser OAuth through the `mcp-remote` bridge; GitHub/Context7 take an API key (GitHub can reuse the token already saved for the GitHub integration); Filesystem uses a native folder picker
 - Custom servers: any stdio command or Streamable HTTP endpoint with env vars / headers; values marked "Secret" are stored in the macOS Keychain (`mcp:<serverId>:<field>`) — the database only holds a sentinel
+- Native OAuth 2.1 for HTTP servers: endpoints that answer 401 (and don't have an Authorization header configured) trigger dynamic client registration + PKCE, open the system browser to authorize, and receive the callback on a local loopback server; tokens live in the Keychain and refresh automatically
 
 **Native Tool Calling**
 
