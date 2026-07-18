@@ -4,6 +4,21 @@ All notable changes to Elrond will be documented in this file.
 
 The format is based on [Keep a Changelog](https://keepachangelog.com/), and this project adheres to [Semantic Versioning](https://semver.org/).
 
+## [Unreleased]
+
+### Added
+
+**Test Suite & CI**
+
+- First automated test suite: 335 vitest unit tests co-located with the modules they cover (`src/**/*.test.ts`) — debate prompts and moderator-verdict parsing, the MCP tool loop and tool namespacing, provider message converters, token/cost estimation, GitHub and web-search formatting, agent validation and seeding, database migrations against in-memory SQLite (including the legacy upgrade paths), FTS query building, MCP secret resolution, and the renderer stores' stream-event state transitions
+- GitHub Actions CI (`.github/workflows/ci.yaml`) on every PR: typecheck + unit tests on Ubuntu, production build smoke on macOS
+
+### Technical
+
+- Both TypeScript projects now typecheck clean and `npm run typecheck` covers them both — `tsconfig.node.json` targets ES2022 (its lib previously defaulted to ES5, the root cause of the long-standing "known errors")
+- Pure orchestrator helpers extracted to `src/main/orchestrator/utils.ts` and provider converter functions exported for testability (no behavior changes)
+- New npm scripts `test`, `test:watch`, `typecheck`; `make test` is now the full local gate (typecheck + tests + build)
+
 ## [0.4.0] - 2026-07-13
 
 ### Added
