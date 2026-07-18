@@ -19,10 +19,12 @@ build: ## Build production bundles into out/
 start: build ## Build and launch the production bundle
 	npm run preview
 
-typecheck: ## Typecheck the renderer project
-	npx tsc --noEmit -p tsconfig.web.json
+typecheck: ## Typecheck the main and renderer projects
+	npm run typecheck
 
-test: typecheck build ## No unit-test suite yet — typecheck + build act as the gate
+test: typecheck ## Typecheck + unit tests + build — the full local gate
+	npm test
+	$(MAKE) build
 
 export: build ## Package Elrond.app and install it to Applications (Spotlight-searchable)
 	npx electron-builder --dir

@@ -3,8 +3,11 @@
 ## Commands
 
 ```bash
-npm run dev      # Start in development mode with HMR
-npm run build    # Build for production
+npm run dev         # Start in development mode with HMR
+npm run build       # Build for production
+npm test            # Run the unit-test suite once (vitest)
+npm run test:watch  # Run vitest in watch mode
+npm run typecheck   # Typecheck both the main and renderer projects
 ```
 
 Or via the Makefile:
@@ -14,10 +17,36 @@ make install     # npm install
 make dev         # development mode with HMR
 make build       # production build into out/
 make start       # build + launch the production bundle
-make test        # typecheck + build (no unit-test suite yet)
+make test        # typecheck + unit tests + build — the full local gate
 make export      # package Elrond.app into /Applications (Spotlight-searchable)
 make clean       # remove build output
 ```
+
+## Testing
+
+Unit tests run with [vitest](https://vitest.dev) in a plain Node environment
+and live next to the modules they cover (`src/**/*.test.ts`). They focus on
+the pure logic that regresses silently: prompt building and verdict parsing,
+tool namespacing, provider message conversion, cost/token estimation, database
+migrations (against in-memory SQLite), and store state transitions. Native
+modules with side effects (keytar) are always mocked — tests must never touch
+the real keychain or the network.
+
+CI (`.github/workflows/ci.yaml`) runs typecheck + tests on Ubuntu and a
+production build on macOS for every PR.
+
+If the database tests fail locally with `ERR_DLOPEN_FAILED` /
+`NODE_MODULE_VERSION` errors, your better-sqlite3 binding was built for
+Electron's ABI (the `postinstall` does this). Fix with:
+
+```bash
+npm rebuild better-sqlite3                  # rebuild for plain Node → tests work
+npx electron-rebuild -f -w better-sqlite3   # restore the Electron build → app works again
+```
+
+The `-f` on the restore matters: a plain `npm install` (or `install-app-deps`)
+can silently skip the rebuild because electron-rebuild's cache still thinks the
+module is already built for Electron.
 
 ## Packaging
 
@@ -31,10 +60,8 @@ running instance from the tray first, or the old build keeps running.
 
 ## Notes for contributors
 
-- The renderer typecheck (`npx tsc --noEmit -p tsconfig.web.json`) is clean and
-  should stay that way; `tsconfig.node.json` has two known pre-existing errors
-  (a `GitHubHeaders` fetch overload and a regex-flag target complaint) that the
-  esbuild-based electron-vite build ignores.
+- Both typecheck projects (`npm run typecheck` covers `tsconfig.node.json` and
+  `tsconfig.web.json`) are clean and CI enforces that they stay that way.
 - Token counts across the app are estimates (chars ÷ 4) — the app does not read
   real usage from provider SDKs.
 - See [CONTRIBUTING.md](CONTRIBUTING.md) for guidelines on adding providers,

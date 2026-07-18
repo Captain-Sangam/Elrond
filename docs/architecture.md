@@ -41,6 +41,7 @@ src/
       providers/            OpenAI, Anthropic, Google, Ollama streaming adapters (multimodal, tool-calling)
       prompts.ts            Debate round, moderator + synthesis prompt templates
       toolLoop.ts           Provider-agnostic agentic loop (stream → call MCP tools → re-stream)
+      utils.ts              Pure helpers: token estimates, error-message cleanup, attachment parts
     agentStore.ts           Agent configs (persistence, validation, first-run seeding)
     keychain.ts             macOS Keychain via keytar
   preload/                  contextBridge typed API
@@ -57,6 +58,9 @@ src/
   shared/                   Types shared between main + renderer (incl. MCP presets)
 ```
 
+Unit tests are co-located with the modules they cover (`src/**/*.test.ts`) and
+run with vitest — see [development.md](development.md#testing).
+
 ## Tech Stack
 
 | Layer       | Technology                                             |
@@ -71,6 +75,7 @@ src/
 | Web Search  | Tavily API                                             |
 | Markdown    | react-markdown + remark-gfm + react-syntax-highlighter |
 | Build       | electron-vite + electron-builder                       |
+| Testing     | vitest (unit) + GitHub Actions CI                      |
 
 ## Data Storage
 

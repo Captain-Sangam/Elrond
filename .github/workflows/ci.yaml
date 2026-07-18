@@ -1,0 +1,42 @@
+name: CI
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  test:
+    name: Typecheck & unit tests
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      # --ignore-scripts skips the Electron download and the electron-builder
+      # install-app-deps postinstall, which rebuilds native modules against
+      # Electron's ABI — the wrong ABI for plain-Node vitest.
+      - run: npm ci --ignore-scripts
+      # Give better-sqlite3 a plain-Node binding for the DB tests.
+      - run: npm rebuild better-sqlite3
+      - run: npm run typecheck
+      - run: npm test
+
+  build:
+    name: Build smoke (macOS)
+    runs-on: macos-14
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-node@v5
+        with:
+          node-version: 22
+          cache: npm
+      # Full install: exercises the real postinstall path contributors run
+      # locally (Electron download + native rebuild).
+      - run: npm ci
+      - run: npm run build

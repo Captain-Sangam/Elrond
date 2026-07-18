@@ -85,7 +85,7 @@ export async function* streamOpenAIChunks(
 }
 
 // Only user messages accept multimodal parts; other roles are flattened to text
-function toOpenAIMessage(m: ChatMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {
+export function toOpenAIMessage(m: ChatMessage): OpenAI.Chat.Completions.ChatCompletionMessageParam {
   const toolMessage = toOpenAIToolMessage(m)
   if (toolMessage) return toolMessage
   if (m.role === 'user' && typeof m.content !== 'string') {
