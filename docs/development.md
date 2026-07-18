@@ -40,9 +40,13 @@ If the database tests fail locally with `ERR_DLOPEN_FAILED` /
 Electron's ABI (the `postinstall` does this). Fix with:
 
 ```bash
-npm rebuild better-sqlite3   # rebuild for plain Node → tests work
-npm install                  # restore the Electron build → app works again
+npm rebuild better-sqlite3                  # rebuild for plain Node → tests work
+npx electron-rebuild -f -w better-sqlite3   # restore the Electron build → app works again
 ```
+
+The `-f` on the restore matters: a plain `npm install` (or `install-app-deps`)
+can silently skip the rebuild because electron-rebuild's cache still thinks the
+module is already built for Electron.
 
 ## Packaging
 
