@@ -11,7 +11,6 @@ import { SettingsDialog } from './components/settings/SettingsDialog'
 import { AgentsDialog } from './components/agents/AgentsDialog'
 import { SetupWizard } from './components/onboarding/SetupWizard'
 import { RepoPickerDialog } from './components/github/RepoPickerDialog'
-import { TooltipProvider } from './components/ui/tooltip'
 
 export default function App(): React.JSX.Element {
   const { loaded, setupComplete, loadSettings } = useSettingsStore()
@@ -99,28 +98,26 @@ export default function App(): React.JSX.Element {
   }
 
   return (
-    <TooltipProvider>
-      <div className="flex h-screen">
-        <Sidebar
-          onSettingsClick={() => setSettingsOpen(true)}
-          onRepoClick={() => setRepoPickerOpen(true)}
-          onAgentsClick={() => setAgentsOpen(true)}
-        />
-        <div className="flex flex-1 flex-col">
-          <TopBar statsOpen={statsOpen} onToggleStats={toggleStats} />
-          <SessionView statsOpen={statsOpen} />
-        </div>
-        <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
-        <AgentsDialog
-          open={agentsOpen}
-          onOpenChange={setAgentsOpen}
-          onOpenSettings={() => {
-            setAgentsOpen(false)
-            setSettingsOpen(true)
-          }}
-        />
-        <RepoPickerDialog open={repoPickerOpen} onOpenChange={setRepoPickerOpen} />
+    <div className="flex h-screen">
+      <Sidebar
+        onSettingsClick={() => setSettingsOpen(true)}
+        onRepoClick={() => setRepoPickerOpen(true)}
+        onAgentsClick={() => setAgentsOpen(true)}
+      />
+      <div className="flex flex-1 flex-col">
+        <TopBar statsOpen={statsOpen} onToggleStats={toggleStats} />
+        <SessionView statsOpen={statsOpen} />
       </div>
-    </TooltipProvider>
+      <SettingsDialog open={settingsOpen} onOpenChange={setSettingsOpen} />
+      <AgentsDialog
+        open={agentsOpen}
+        onOpenChange={setAgentsOpen}
+        onOpenSettings={() => {
+          setAgentsOpen(false)
+          setSettingsOpen(true)
+        }}
+      />
+      <RepoPickerDialog open={repoPickerOpen} onOpenChange={setRepoPickerOpen} />
+    </div>
   )
 }

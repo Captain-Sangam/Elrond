@@ -9,8 +9,6 @@ import { cn } from '@renderer/lib/utils'
  * Astryx renders a native <dialog>, so it gets top-layer stacking, a real
  * backdrop and built-in Escape/close semantics — which is what makes the nested
  * case (the MCP server form opening over Settings) behave correctly.
- * `className` lands on the <dialog> element, so the consumers' sizing classes
- * (max-w-2xl, max-h-[85vh], overflow-y-auto) still apply.
  *
  * The context carries `setOpen` for the close button. Astryx's own DialogHeader
  * isn't used — it takes `title: string` while the app composes
@@ -20,6 +18,35 @@ import { cn } from '@renderer/lib/utils'
 const DialogContext = React.createContext<{ setOpen: (open: boolean) => void }>({
   setOpen: () => {}
 })
+
+/**
+ * Astryx's Dialog defaults to `width: 400px` on the <dialog> itself, and the
+ * consumers express width with Tailwind `max-w-*` on DialogContent — a max can't
+ * widen a narrower parent, so every dialog would render at 400px. Read the
+ * intended width off DialogContent's class and hand it to Astryx's `width` prop.
+ */
+const MAX_W_PX: Record<string, number> = {
+  'max-w-md': 448,
+  'max-w-lg': 512,
+  'max-w-xl': 576,
+  'max-w-2xl': 672
+}
+
+function widthOf(children: React.ReactNode): number | undefined {
+  let width: number | undefined
+  React.Children.forEach(children, (child) => {
+    if (width !== undefined || !React.isValidElement(child)) return
+    const className = (child.props as { className?: string }).className
+    if (!className) return
+    for (const cls of className.split(/\s+/)) {
+      if (MAX_W_PX[cls] !== undefined) {
+        width = MAX_W_PX[cls]
+        return
+      }
+    }
+  })
+  return width
+}
 
 function Dialog({
   open,
@@ -36,7 +63,12 @@ function Dialog({
 
   return (
     <DialogContext.Provider value={{ setOpen }}>
-      <AstryxDialog isOpen={isOpen} onOpenChange={setOpen} padding={0}>
+      <AstryxDialog
+        isOpen={isOpen}
+        onOpenChange={setOpen}
+        padding={0}
+        width={widthOf(children)}
+      >
         {children}
       </AstryxDialog>
     </DialogContext.Provider>
