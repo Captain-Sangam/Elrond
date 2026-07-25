@@ -1,6 +1,5 @@
 import React, { createContext, useContext } from 'react'
-import { TabList } from '@astryxdesign/core/TabList'
-import { Tab } from '@astryxdesign/core/TabList'
+import { Tab, TabList } from '@astryxdesign/core/TabList'
 
 /**
  * Astryx TabList/Tab behind the app's existing Tabs API.
