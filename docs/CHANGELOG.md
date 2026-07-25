@@ -6,6 +6,17 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Changed
+
+**UI framework: Astryx design system**
+
+- Replaced the shadcn-style token layer and hand-written primitives with [Astryx](https://astryx.atmeta.com) (Meta's open-source React design system) on the **Gothic** theme — dark-only, deep blue-grays. All functionality, flows and features are unchanged; this is a re-skin plus a primitive swap
+- Colors, radii and fonts now resolve to Astryx tokens. Tailwind stays for layout utilities, with its color/radius scales mapped to those tokens (the officially supported hybrid)
+- `components/ui/` primitives are now thin wrappers over Astryx `Button`, `Badge`, `Dialog`, `TabList`/`Tab` and `Selector`, keeping the app's existing prop APIs so no feature component changed
+- Dialogs run on Astryx's native `<dialog>`: real top-layer stacking, backdrop and Escape handling — which fixes the nested case (the MCP server form over Settings). Selects are now floating listboxes that escape dialog clipping
+- `Input`/`Textarea` remain native elements styled with Astryx tokens; Astryx's Field-wrapped equivalents route `className` to a wrapper, which the sizing and icon-overlay classes depend on. See [architecture.md](architecture.md#styling-notes)
+- Removed the dead `tooltip.tsx` (a no-op provider; real tooltips are native `title` attributes) and dropped the `class-variance-authority` dependency
+
 ### Added
 
 **Test Suite & CI**

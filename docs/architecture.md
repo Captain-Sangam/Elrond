@@ -53,7 +53,7 @@ src/
       layout/               Sidebar, top bar, stats panel
       onboarding/           Setup wizard
       settings/             Settings dialog (tabbed), repo manager, MCP server manager
-      ui/                   shadcn-style primitives (incl. local tabs)
+      ui/                   Thin wrappers over Astryx components, keeping the app's own prop API
     stores/                 Zustand state (sessions, settings, agents, indexing progress, MCP servers)
   shared/                   Types shared between main + renderer (incl. MCP presets)
 ```
@@ -66,7 +66,7 @@ run with vitest — see [development.md](development.md#testing).
 | Layer       | Technology                                             |
 | ----------- | ------------------------------------------------------ |
 | UI          | Electron + React + TypeScript                          |
-| Styling     | Tailwind CSS + shadcn/ui                               |
+| Styling     | Astryx design system (Gothic theme) + Tailwind for layout |
 | State       | Zustand                                                |
 | Database    | SQLite via better-sqlite3, FTS5 for search             |
 | Key Storage | macOS Keychain via keytar                              |
@@ -76,6 +76,36 @@ run with vitest — see [development.md](development.md#testing).
 | Markdown    | react-markdown + remark-gfm + react-syntax-highlighter |
 | Build       | electron-vite + electron-builder                       |
 | Testing     | vitest (unit) + GitHub Actions CI                      |
+
+## Styling notes
+
+The UI runs on [Astryx](https://astryx.atmeta.com) with the Gothic theme.
+Tailwind is kept for layout utilities only; its colors and radii are mapped to
+Astryx tokens in `tailwind.config.js`. A few constraints are load-bearing:
+
+- **Layer order** (`globals.css`) — `@layer tw-base, reset, astryx-base,
+  astryx-theme` puts Tailwind's preflight below Astryx's reset. Tailwind
+  utilities stay unlayered so layout classes still win.
+- **The universal `border-color` rule is deliberately unlayered.** Astryx's
+  reset sets `border-color: currentColor`; a layered override loses to it and
+  every bare `border`/`border-b` renders near-white.
+- **`color-mix` in the Tailwind color map** keeps `/opacity` modifiers working
+  (`bg-muted/30`, `hover:bg-accent/50`). A bare `var(--token)` drops the alpha.
+- **Gothic's tokens are `@scope`d to `[data-astryx-theme="gothic"]`**, set on
+  `<html>` in `index.html` along with `data-theme="dark"` (which drives
+  `color-scheme`). Gothic is dark-only, so no runtime theme provider is needed.
+- **`components/ui/` wraps Astryx** rather than exposing it directly, so feature
+  components keep their existing props. Astryx's `Button` needs a string `label`
+  and takes icons via `icon` (children render in a block span, so a leading
+  `<svg>` would wrap onto its own line); `Dialog` defaults to `width: 400px`, so
+  the wrapper maps the consumers' `max-w-*` class to its `width` prop.
+- **`Input`/`Textarea` stay native elements** styled with Astryx tokens.
+  Astryx's `TextInput`/`TextArea` are Field-wrapped: they require a `label`, use
+  `onChange(value, e)`, and put `className` on their outer wrapper — but the call
+  sites need it on the control itself (heights, `pl-8` to clear an overlaid icon,
+  `flex-1`), and the composer reads the textarea's own `selectionStart`.
+- Gothic asks for the Fustat and JetBrains Mono webfonts but ships no
+  `@font-face`; they fall back to system fonts unless installed locally.
 
 ## Data Storage
 
