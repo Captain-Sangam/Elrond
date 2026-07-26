@@ -78,6 +78,25 @@
   border-color: var(--color-border);
 }
 
+/*
+ * Astryx's Tooltip has no size prop and renders through useTooltip, so a
+ * className on the trigger can't reach it. At its defaults the label sits at the
+ * 16px body base with a 12px radius — a large pill next to this app's 11–12px UI
+ * text. `.astryx-tooltip` is Astryx's stable theming surface, but its StyleX
+ * classes carry the same specificity, so `:where()` on the root plus the
+ * descendant rule is needed to win on more than source order. The inner text div
+ * is StyleX-only, hence the `> *`.
+ */
+:where(html) .astryx-tooltip,
+:where(html) .astryx-tooltip > * {
+  font-size: 0.75rem;
+  line-height: 1.125rem;
+}
+
+:where(html) .astryx-tooltip {
+  border-radius: var(--radius-element);
+}
+
 @layer tw-base {
   body {
     background-color: var(--color-background-body);
