@@ -88,7 +88,7 @@ function DialogContent({
       <button
         onClick={() => setOpen(false)}
         aria-label="Close"
-        className="absolute right-4 top-4 z-10 rounded-sm opacity-70 transition-opacity hover:opacity-100"
+        className="absolute right-4 top-4 z-10 rounded-sm text-sm opacity-70 transition-opacity hover:opacity-100"
       >
         <X className="h-4 w-4" />
       </button>

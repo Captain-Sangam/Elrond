@@ -31,6 +31,20 @@ const SIZE_MAP = {
   icon: 'md'
 } as const
 
+/*
+ * Astryx's size prop controls height but leaves the label at the 16px body base,
+ * whereas the CVA button this replaced had `text-sm` in its base classes. Without
+ * this, every button that doesn't pass its own text-* class renders 16px — which
+ * made "New Session" larger than the sidebar title above it. Call sites that do
+ * pass a text class still win, since these are merged first by cn().
+ */
+const SIZE_TEXT = {
+  default: 'text-sm',
+  sm: 'text-xs',
+  lg: 'text-base',
+  icon: 'text-sm'
+} as const
+
 /** Astryx needs a string accessible name; pull one out of the JSX children. */
 function textOf(node: React.ReactNode): string {
   if (node === null || node === undefined || typeof node === 'boolean') return ''
@@ -88,7 +102,7 @@ const Button = React.forwardRef<HTMLButtonElement, ButtonProps>(
         isDisabled={disabled}
         tooltip={title}
         type={type as 'button' | 'submit' | 'reset' | undefined}
-        className={cn(className)}
+        className={cn(SIZE_TEXT[size], className)}
         {...props}
       />
     )

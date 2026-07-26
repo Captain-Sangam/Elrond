@@ -42,13 +42,19 @@ export function TabsList({
     <TabList
       value={ctx.value}
       onChange={ctx.setValue}
+      size="sm"
       /*
-       * Astryx pads each Tab 12px horizontally for its hit area, which pushes the
-       * first tab's *text* 12px right of the dialog title and section headings.
-       * Pull the strip back by that much so the text baselines line up, and the
-       * hover/click area still extends past it.
+       * Two corrections to Astryx's defaults:
+       * - `-ml-3` offsets the 12px horizontal padding Astryx puts on each Tab for
+       *   its hit area, which otherwise pushes the first tab's *text* 12px right
+       *   of the dialog title and section headings. The click area still extends
+       *   past the text.
+       * - `[&_button]:text-sm` because the tab label is 16px regardless of `size`
+       *   (that prop only drives height), landing between the 18px dialog title
+       *   and the 14px section heading — four type sizes in one header. Tabs are
+       *   navigation, so they read at the heading's level, not the title's.
        */
-      className={cn('-ml-3', className)}
+      className={cn('-ml-3 [&_button]:text-sm', className)}
     >
       {children}
     </TabList>
