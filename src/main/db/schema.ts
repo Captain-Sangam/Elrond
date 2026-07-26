@@ -152,6 +152,24 @@ export function runMigrations(db: Database.Database): void {
     `)
   }
 
+  // Per-turn token/cost totals. The stats rail is derived from live streaming
+  // state, so without this table reopening a session showed an empty rail.
+  // Written when a turn finishes, read back on session load.
+  db.exec(`
+    CREATE TABLE IF NOT EXISTS turn_stats (
+      session_id TEXT NOT NULL,
+      turn INTEGER NOT NULL,
+      input INTEGER NOT NULL DEFAULT 0,
+      output INTEGER NOT NULL DEFAULT 0,
+      cost REAL NOT NULL DEFAULT 0,
+      elapsed_ms INTEGER NOT NULL DEFAULT 0,
+      rounds INTEGER NOT NULL DEFAULT 0,
+      converged INTEGER,
+      PRIMARY KEY (session_id, turn),
+      FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
+    );
+  `)
+
   // Remove orphaned empty sessions left by the old eager-create New Chat flow
   db.exec(`
     DELETE FROM sessions WHERE title = 'New Session' AND repo_id IS NULL

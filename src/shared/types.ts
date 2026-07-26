@@ -241,6 +241,19 @@ export interface LifetimeStats {
   tokensGenerated: number
 }
 
+// One finished turn's token/cost totals, persisted so the stats rail survives
+// a session switch or app restart. All token counts are length/4 estimates.
+// `converged` is null when debate was off or produced no verdict.
+export interface TurnStats {
+  turn: number
+  input: number
+  output: number
+  cost: number
+  elapsedMs: number
+  rounds: number
+  converged: boolean | null
+}
+
 export interface DeliberationRequest {
   sessionId: string
   prompt: string
@@ -279,6 +292,8 @@ export interface ElrondAPI {
   deleteSession: (id: string) => Promise<void>
   searchSessions: (query: string) => Promise<Session[]>
   getLifetimeStats: () => Promise<LifetimeStats>
+  getTurnStats: (sessionId: string) => Promise<TurnStats[]>
+  saveTurnStats: (sessionId: string, stats: TurnStats) => Promise<void>
 
   // Messages
   getMessages: (sessionId: string) => Promise<Message[]>

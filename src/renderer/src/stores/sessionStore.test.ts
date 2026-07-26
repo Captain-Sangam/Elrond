@@ -109,11 +109,15 @@ const makeElrond = (): {
   getSessions: ReturnType<typeof vi.fn>
   saveAgents: ReturnType<typeof vi.fn>
   setSetting: ReturnType<typeof vi.fn>
+  getTurnStats: ReturnType<typeof vi.fn>
+  saveTurnStats: ReturnType<typeof vi.fn>
 } => ({
   getMessages: vi.fn().mockResolvedValue([messageFixture]),
   getSessions: vi.fn().mockResolvedValue([sessionFixture]),
   saveAgents: vi.fn().mockResolvedValue(undefined),
-  setSetting: vi.fn().mockResolvedValue(undefined)
+  setSetting: vi.fn().mockResolvedValue(undefined),
+  getTurnStats: vi.fn().mockResolvedValue([]),
+  saveTurnStats: vi.fn().mockResolvedValue(undefined)
 })
 
 let elrond: ReturnType<typeof makeElrond>
@@ -437,6 +441,107 @@ describe('startDeliberation', () => {
     useSessionStore.getState().startDeliberation('retry')
 
     expect(useSessionStore.getState().turnStats).toEqual([])
+  })
+
+  it('persists the archived turn so it survives a session switch', () => {
+    useAgentsStore.setState({ agents: [openaiAgent], synthesizerAgentId: 'a1' })
+    useSessionStore.setState({ activeSessionId: 's1' })
+    const s = useSessionStore.getState()
+    s.handleStreamStart(startEvt({ inputTokens: 100 }))
+    s.handleStreamDone(doneEvt({ fullContent: 'x'.repeat(40), tokenCount: 10 }))
+    useSessionStore.setState({ deliberationStartedAt: 1000, deliberationEndedAt: 5000 })
+
+    useSessionStore.getState().startDeliberation('follow-up')
+
+    expect(elrond.saveTurnStats).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ turn: 1, input: 100, output: 10 })
+    )
+  })
+
+  it('numbers a new turn after the turns already loaded from the DB', async () => {
+    elrond.getTurnStats.mockResolvedValue([
+      { turn: 1, input: 10, output: 20, cost: 0, elapsedMs: 0, rounds: 0, converged: null },
+      { turn: 2, input: 10, output: 20, cost: 0, elapsedMs: 0, rounds: 0, converged: null }
+    ])
+    await useSessionStore.getState().setActiveSession('s1')
+    expect(useSessionStore.getState().currentTurn).toBe(3)
+
+    useSessionStore.getState().startDeliberation('third question')
+    expect(useSessionStore.getState().currentTurn).toBe(3)
+  })
+})
+
+describe('setActiveSession', () => {
+  it('rehydrates persisted turn stats instead of showing zeros', async () => {
+    const persisted = [
+      { turn: 1, input: 1200, output: 3400, cost: 0.023, elapsedMs: 45000, rounds: 2, converged: true }
+    ]
+    elrond.getTurnStats.mockResolvedValue(persisted)
+
+    await useSessionStore.getState().setActiveSession('s1')
+
+    expect(elrond.getTurnStats).toHaveBeenCalledWith('s1')
+    expect(useSessionStore.getState().turnStats).toEqual(persisted)
+  })
+
+  it('clears stats from the previous session when switching to none', async () => {
+    useSessionStore.setState({ turnStats: [{ turn: 1, input: 1, output: 1, cost: 0, elapsedMs: 0, rounds: 0, converged: null }] })
+    await useSessionStore.getState().setActiveSession(null)
+    expect(useSessionStore.getState().turnStats).toEqual([])
+    expect(useSessionStore.getState().currentTurn).toBe(1)
+  })
+})
+
+describe('archiveCurrentTurn', () => {
+  // The archive-on-next-turn path never runs for the last turn of a session,
+  // so completion must save it or it is lost on quit
+  it('persists the final turn when the deliberation completes', async () => {
+    useAgentsStore.setState({ agents: [openaiAgent], synthesizerAgentId: 'a1' })
+    useSessionStore.setState({ activeSessionId: 's1' })
+    const s = useSessionStore.getState()
+    s.handleStreamStart(startEvt({ inputTokens: 100 }))
+    s.handleStreamDone(doneEvt({ fullContent: 'x'.repeat(40), tokenCount: 10 }))
+    useSessionStore.setState({ deliberationStartedAt: 1000 })
+
+    useSessionStore.getState().handlePhaseChange({ phase: 'complete' })
+
+    expect(elrond.saveTurnStats).toHaveBeenCalledWith(
+      's1',
+      expect.objectContaining({ turn: 1, input: 100, output: 10 })
+    )
+    expect(useSessionStore.getState().turnStats).toHaveLength(1)
+  })
+
+  // Completion saves the turn, then the next startDeliberation archives it
+  // again — the second pass must overwrite, not append a duplicate
+  it('overwrites rather than duplicates when the same turn is archived twice', () => {
+    useAgentsStore.setState({ agents: [openaiAgent], synthesizerAgentId: 'a1' })
+    useSessionStore.setState({ activeSessionId: 's1' })
+    const s = useSessionStore.getState()
+    s.handleStreamStart(startEvt({ inputTokens: 100 }))
+    s.handleStreamDone(doneEvt({ fullContent: 'x'.repeat(40), tokenCount: 10 }))
+    useSessionStore.setState({ deliberationStartedAt: 1000, deliberationEndedAt: 5000 })
+
+    useSessionStore.getState().archiveCurrentTurn()
+    useSessionStore.getState().archiveCurrentTurn()
+
+    const { turnStats } = useSessionStore.getState()
+    expect(turnStats).toHaveLength(1)
+    expect(turnStats[0].turn).toBe(1)
+  })
+
+  it('does not throw when the stats write fails', () => {
+    useAgentsStore.setState({ agents: [openaiAgent], synthesizerAgentId: 'a1' })
+    useSessionStore.setState({ activeSessionId: 's1' })
+    elrond.saveTurnStats.mockRejectedValue(new Error('disk full'))
+    const s = useSessionStore.getState()
+    s.handleStreamStart(startEvt({ inputTokens: 100 }))
+    s.handleStreamDone(doneEvt({ fullContent: 'x'.repeat(40), tokenCount: 10 }))
+    useSessionStore.setState({ deliberationStartedAt: 1000, deliberationEndedAt: 5000 })
+
+    expect(() => useSessionStore.getState().archiveCurrentTurn()).not.toThrow()
+    expect(useSessionStore.getState().turnStats).toHaveLength(1)
   })
 })
 

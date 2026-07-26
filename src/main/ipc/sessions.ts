@@ -3,7 +3,7 @@ import { getDb } from '../db'
 import { toFtsQuery } from '../db/fts'
 import { deleteAttachmentFiles, loadAttachmentsForMessages } from '../attachments'
 import { v4 as uuidv4 } from 'uuid'
-import type { Session, Message } from '../../shared/types'
+import type { Session, Message, TurnStats } from '../../shared/types'
 
 export function registerSessionsHandlers(): void {
   ipcMain.handle('sessions:list', () => {
@@ -19,6 +19,51 @@ export function registerSessionsHandlers(): void {
       )
       .get() as { turns: number; tokensGenerated: number }
     return row
+  })
+
+  ipcMain.handle('turnStats:list', (_, sessionId: string) => {
+    const db = getDb()
+    const rows = db
+      .prepare('SELECT * FROM turn_stats WHERE session_id = ? ORDER BY turn')
+      .all(sessionId) as {
+      turn: number
+      input: number
+      output: number
+      cost: number
+      elapsed_ms: number
+      rounds: number
+      converged: number | null
+    }[]
+    return rows.map((r) => ({
+      turn: r.turn,
+      input: r.input,
+      output: r.output,
+      cost: r.cost,
+      elapsedMs: r.elapsed_ms,
+      rounds: r.rounds,
+      // NULL means "debate off / no verdict" and must stay null, not become false
+      converged: r.converged === null ? null : r.converged === 1
+    })) satisfies TurnStats[]
+  })
+
+  // Idempotent: the archive path and the completion path can both write the
+  // same turn, so re-saving must overwrite rather than fail on the PK
+  ipcMain.handle('turnStats:save', (_, sessionId: string, stats: TurnStats) => {
+    const db = getDb()
+    db.prepare(
+      `INSERT OR REPLACE INTO turn_stats
+         (session_id, turn, input, output, cost, elapsed_ms, rounds, converged)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(
+      sessionId,
+      stats.turn,
+      stats.input,
+      stats.output,
+      stats.cost,
+      stats.elapsedMs,
+      stats.rounds,
+      stats.converged === null ? null : stats.converged ? 1 : 0
+    )
   })
 
   ipcMain.handle('sessions:get', (_, id: string) => {

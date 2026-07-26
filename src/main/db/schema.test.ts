@@ -85,6 +85,7 @@ describe('runMigrations on a fresh database', () => {
       'repo_files',
       'attachments',
       'mcp_servers',
+      'turn_stats',
       'messages_fts',
       'repo_files_fts'
     ]) {
@@ -330,6 +331,75 @@ describe('legacy upgrade: pre-round messages table', () => {
     expect(() => addMessage(db, 'm-orphan', 'no-such-session', 'user', 'dangling')).toThrow(
       /FOREIGN KEY constraint failed/
     )
+  })
+})
+
+describe('turn_stats', () => {
+  let db: Database.Database
+
+  const saveTurn = (
+    sessionId: string,
+    turn: number,
+    input: number,
+    output: number,
+    converged: number | null
+  ): void => {
+    db.prepare(
+      `INSERT OR REPLACE INTO turn_stats
+         (session_id, turn, input, output, cost, elapsed_ms, rounds, converged)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+    ).run(sessionId, turn, input, output, 0.01, 1000, 1, converged)
+  }
+
+  beforeEach(() => {
+    db = new Database(':memory:')
+    runMigrations(db)
+    db.prepare("INSERT INTO sessions (id, title) VALUES ('s1', 'a session')").run()
+  })
+
+  afterEach(() => {
+    db.close()
+  })
+
+  // Both the completion path and the next-turn archive path write the same
+  // turn, so the second write must overwrite instead of failing on the PK
+  it('overwrites a re-saved turn rather than duplicating it', () => {
+    saveTurn('s1', 1, 100, 200, 1)
+    saveTurn('s1', 1, 150, 250, 1)
+
+    const rows = db.prepare('SELECT * FROM turn_stats WHERE session_id = ?').all('s1')
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ turn: 1, input: 150, output: 250 })
+  })
+
+  // NULL means "debate off / no verdict" and must not collapse to false
+  it('round-trips a null converged distinctly from 0', () => {
+    saveTurn('s1', 1, 10, 20, null)
+    saveTurn('s1', 2, 10, 20, 0)
+
+    const rows = db
+      .prepare('SELECT turn, converged FROM turn_stats ORDER BY turn')
+      .all() as { turn: number; converged: number | null }[]
+    expect(rows[0].converged).toBeNull()
+    expect(rows[1].converged).toBe(0)
+  })
+
+  it('deletes a session\'s stats along with the session', () => {
+    saveTurn('s1', 1, 10, 20, 1)
+    db.prepare("DELETE FROM sessions WHERE id = 's1'").run()
+    expect(db.prepare('SELECT COUNT(*) AS n FROM turn_stats').get()).toMatchObject({ n: 0 })
+  })
+
+  it('rejects stats for a session that does not exist', () => {
+    expect(() => saveTurn('no-such-session', 1, 10, 20, 1)).toThrow(/FOREIGN KEY constraint failed/)
+  })
+
+  it('survives a second migration run with its rows intact', () => {
+    saveTurn('s1', 1, 100, 200, 1)
+    runMigrations(db)
+    const rows = db.prepare('SELECT * FROM turn_stats').all()
+    expect(rows).toHaveLength(1)
+    expect(rows[0]).toMatchObject({ input: 100, output: 200 })
   })
 })
 

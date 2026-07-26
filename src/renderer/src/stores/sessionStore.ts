@@ -11,7 +11,8 @@ import type {
   StreamError,
   StreamStart,
   StreamToken,
-  StreamToolEvent
+  StreamToolEvent,
+  TurnStats
 } from '@shared/types'
 
 // One MCP tool call shown inline in a streaming message; upserted by callId
@@ -57,17 +58,10 @@ export interface PendingAttachmentPreview {
   previewUrl: string | null
 }
 
-// A finished turn's stats, archived when the next turn starts so follow-up
-// questions stack in the stats rail instead of wiping the numbers
-export interface TurnStats {
-  turn: number
-  input: number
-  output: number
-  cost: number
-  elapsedMs: number
-  rounds: number
-  converged: boolean | null
-}
+// A finished turn's stats. Persisted to turn_stats on completion and reloaded
+// on session load, so the rail survives a session switch or app restart.
+// Re-exported from shared types, where main needs it too.
+export type { TurnStats } from '@shared/types'
 
 interface SessionState {
   sessions: Session[]
@@ -94,8 +88,13 @@ interface SessionState {
   // Non-fatal notices for the in-flight turn (e.g. "Web search skipped: ...")
   notices: string[]
 
-  // Prior turns of this app-session's view of the chat (survives resetStreams)
+  // Per-turn stats for this session, loaded from the DB and appended to as
+  // turns finish (survives resetStreams)
   turnStats: TurnStats[]
+
+  // 1-based number of the in-flight turn, used to key its persisted stats so
+  // archiving the same turn twice overwrites instead of duplicating
+  currentTurn: number
 
   loadSessions: () => Promise<void>
   setActiveSession: (id: string | null) => Promise<void>
@@ -105,6 +104,7 @@ interface SessionState {
   searchSessions: (query: string) => Promise<void>
 
   startDeliberation: (prompt: string, attachments?: PendingAttachmentPreview[]) => void
+  archiveCurrentTurn: () => void
   handleStreamStart: (start: StreamStart) => void
   handleStreamToken: (token: StreamToken) => void
   handleStreamDone: (done: StreamDone) => void
@@ -205,6 +205,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   deliberationEndedAt: null,
   notices: [],
   turnStats: [],
+  currentTurn: 1,
 
   loadSessions: async () => {
     const sessions = await window.elrond.getSessions()
@@ -212,10 +213,17 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   setActiveSession: async (id) => {
-    set({ activeSessionId: id, turnStats: [] })
+    set({ activeSessionId: id, turnStats: [], currentTurn: 1 })
     if (id) {
-      const messages = await window.elrond.getMessages(id)
-      set({ messages })
+      // Persisted per-turn stats, so the rail shows history instead of zeros
+      const [messages, turnStats] = await Promise.all([
+        window.elrond.getMessages(id),
+        window.elrond.getTurnStats(id)
+      ])
+      // Resume numbering after the loaded turns so a new turn doesn't
+      // overwrite turn 1's persisted row
+      const maxTurn = turnStats.reduce((m, t) => Math.max(m, t.turn), 0)
+      set({ messages, turnStats, currentTurn: maxTurn + 1 })
     } else {
       set({ messages: [] })
     }
@@ -251,56 +259,73 @@ export const useSessionStore = create<SessionState>((set, get) => ({
     set({ sessions })
   },
 
+  archiveCurrentTurn: () => {
+    const state = get()
+    if (state.deliberationStartedAt === null) return
+
+    const { agents, synthesizerAgentId } = useAgentsStore.getState()
+    const totals = deriveTurnStats({
+      enabledAgents: agents.filter((a) => a.enabled),
+      synthesizerAgent: effectiveSynthesizer({ agents, synthesizerAgentId }),
+      agentStreams: state.agentStreams,
+      debateRounds: state.debateRounds,
+      synthesisStream: state.synthesisStream,
+      callInputTokens: state.callInputTokens,
+      isDeliberating: false,
+      currentPhase: null
+    })
+    if (totals.input + totals.output === 0) return
+
+    const lastVerdict =
+      state.debateRounds.length > 0
+        ? state.debateRounds[state.debateRounds.length - 1].verdict
+        : null
+    // Overwrite the entry for this turn if it's already archived, so running
+    // this on both completion and next-turn-start stays idempotent
+    const existing = state.turnStats.findIndex((t) => t.turn === state.currentTurn)
+    const stats: TurnStats = {
+      turn: state.currentTurn,
+      input: totals.input,
+      output: totals.output,
+      cost: totals.cost,
+      elapsedMs: Math.max(
+        0,
+        (state.deliberationEndedAt ?? Date.now()) - state.deliberationStartedAt
+      ),
+      rounds: state.debateRounds.length,
+      converged: lastVerdict?.converged ?? null
+    }
+    const turnStats = [...state.turnStats]
+    if (existing >= 0) turnStats[existing] = stats
+    else turnStats.push(stats)
+    set({ turnStats })
+
+    // Persist so the rail survives a session switch or restart. Fire-and-forget:
+    // a failed write must not break the deliberation.
+    if (state.activeSessionId) {
+      window.elrond.saveTurnStats(state.activeSessionId, stats).catch(() => {})
+    }
+  },
+
   startDeliberation: (prompt, attachments) => {
     // Archive the finished turn before the reset wipes its live state, so
     // follow-up questions stack in the stats rail instead of zeroing it
-    const state = get()
-    if (state.deliberationStartedAt !== null) {
-      const { agents, synthesizerAgentId } = useAgentsStore.getState()
-      const totals = deriveTurnStats({
-        enabledAgents: agents.filter((a) => a.enabled),
-        synthesizerAgent: effectiveSynthesizer({ agents, synthesizerAgentId }),
-        agentStreams: state.agentStreams,
-        debateRounds: state.debateRounds,
-        synthesisStream: state.synthesisStream,
-        callInputTokens: state.callInputTokens,
-        isDeliberating: false,
-        currentPhase: null
-      })
-      if (totals.input + totals.output > 0) {
-        const lastVerdict =
-          state.debateRounds.length > 0
-            ? state.debateRounds[state.debateRounds.length - 1].verdict
-            : null
-        set({
-          turnStats: [
-            ...state.turnStats,
-            {
-              turn: state.turnStats.length + 1,
-              input: totals.input,
-              output: totals.output,
-              cost: totals.cost,
-              elapsedMs: Math.max(
-                0,
-                (state.deliberationEndedAt ?? Date.now()) - state.deliberationStartedAt
-              ),
-              rounds: state.debateRounds.length,
-              converged: lastVerdict?.converged ?? null
-            }
-          ]
-        })
-      }
-    }
+    get().archiveCurrentTurn()
 
     get().resetStreams()
     revokePreviews(get().currentAttachments)
+    // Advance past every archived turn. Derived from turnStats rather than
+    // incremented, so a turn that produced no tokens (and so wasn't archived)
+    // doesn't leave a gap in the numbering.
+    const archived = get().turnStats.reduce((m, t) => Math.max(m, t.turn), 0)
     set({
       isDeliberating: true,
       currentPhase: 'initial',
       currentPrompt: prompt,
       currentAttachments: attachments ?? [],
       deliberationStartedAt: Date.now(),
-      deliberationEndedAt: null
+      deliberationEndedAt: null,
+      currentTurn: archived + 1
     })
   },
 
@@ -437,6 +462,9 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   handlePhaseChange: (phase) => {
     if (phase.phase === 'complete') {
       set({ deliberationEndedAt: Date.now() })
+      // Persist now, not just on the next turn's archive pass: this is the only
+      // save the last turn of a session ever gets
+      get().archiveCurrentTurn()
       // Load the persisted messages before hiding the live panels so the
       // finished deliberation doesn't flicker out of view
       get()

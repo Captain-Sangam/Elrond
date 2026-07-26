@@ -147,7 +147,8 @@ export function StatsPanel(): React.JSX.Element {
     callInputTokens,
     deliberationStartedAt,
     deliberationEndedAt,
-    turnStats
+    turnStats,
+    currentTurn
   } = useSessionStore()
   const { agents, synthesizerAgentId } = useAgentsStore()
   const synthesizerAgent = effectiveSynthesizer({ agents, synthesizerAgentId })
@@ -167,6 +168,10 @@ export function StatsPanel(): React.JSX.Element {
   }, [messages])
 
   const hasTurn = deliberationStartedAt !== null
+  // Once a turn finishes it is archived into turnStats, which already renders
+  // it as a past card. Suppressing the live card then keeps it from showing
+  // twice and double-counting in the totals below.
+  const showLive = hasTurn && !turnStats.some((t) => t.turn === currentTurn)
   const current = deriveTurnStats({
     enabledAgents: agents.filter((a) => a.enabled),
     synthesizerAgent,
@@ -187,11 +192,12 @@ export function StatsPanel(): React.JSX.Element {
   // Running totals across every turn in this view of the session
   const totalTokens =
     turnStats.reduce((s, t) => s + t.input + t.output, 0) +
-    (hasTurn ? current.input + current.output : 0)
-  const totalInput = turnStats.reduce((s, t) => s + t.input, 0) + (hasTurn ? current.input : 0)
-  const totalOutput = turnStats.reduce((s, t) => s + t.output, 0) + (hasTurn ? current.output : 0)
-  const totalCost = turnStats.reduce((s, t) => s + t.cost, 0) + (hasTurn ? current.cost : 0)
-  const totalTime = turnStats.reduce((s, t) => s + t.elapsedMs, 0) + (elapsed ?? 0)
+    (showLive ? current.input + current.output : 0)
+  const totalInput = turnStats.reduce((s, t) => s + t.input, 0) + (showLive ? current.input : 0)
+  const totalOutput = turnStats.reduce((s, t) => s + t.output, 0) + (showLive ? current.output : 0)
+  const totalCost = turnStats.reduce((s, t) => s + t.cost, 0) + (showLive ? current.cost : 0)
+  const totalTime =
+    turnStats.reduce((s, t) => s + t.elapsedMs, 0) + (showLive ? (elapsed ?? 0) : 0)
 
   // Keep the live turn in view as the card list grows
   const scrollRef = useRef<HTMLDivElement>(null)
@@ -233,9 +239,9 @@ export function StatsPanel(): React.JSX.Element {
         {turnStats.map((t) => (
           <PastTurnCard key={t.turn} stats={t} />
         ))}
-        {hasTurn ? (
+        {showLive ? (
           <LiveTurnCard
-            turn={turnStats.length + 1}
+            turn={currentTurn}
             totals={current}
             isDeliberating={isDeliberating}
             elapsed={elapsed}
