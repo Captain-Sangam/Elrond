@@ -34,6 +34,8 @@ const api: ElrondAPI = {
   deleteSession: (id) => ipcRenderer.invoke('sessions:delete', id),
   searchSessions: (query) => ipcRenderer.invoke('sessions:search', query),
   getLifetimeStats: () => ipcRenderer.invoke('stats:lifetime'),
+  getTurnStats: (sessionId) => ipcRenderer.invoke('turnStats:list', sessionId),
+  saveTurnStats: (sessionId, stats) => ipcRenderer.invoke('turnStats:save', sessionId, stats),
 
   // Messages
   getMessages: (sessionId) => ipcRenderer.invoke('messages:list', sessionId),
