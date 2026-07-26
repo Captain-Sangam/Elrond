@@ -15,7 +15,7 @@ function formatElapsed(ms: number): string {
 
 function InOutCost({ input, output, cost }: { input: number; output: number; cost: number }): React.JSX.Element {
   return (
-    <div className="flex items-center justify-center gap-3 text-[10px] text-muted-foreground">
+    <div className="flex items-center justify-center gap-3 text-[11px] text-muted-foreground">
       <span className="flex items-center gap-0.5">
         <ArrowUp className="h-2.5 w-2.5" />
         {formatTokens(input)} in
@@ -76,7 +76,7 @@ function PastTurnCard({ stats }: { stats: TurnStats }): React.JSX.Element {
         </span>
       </div>
       <InOutCost input={stats.input} output={stats.output} cost={stats.cost} />
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         <span className="flex items-center gap-1">
           <Clock className="h-2.5 w-2.5" />
           <span className="font-mono tabular-nums">{formatElapsed(stats.elapsedMs)}</span>
@@ -122,7 +122,7 @@ function LiveTurnCard({
         ))}
       </div>
 
-      <div className="flex items-center justify-between text-[10px] text-muted-foreground">
+      <div className="flex items-center justify-between text-[11px] text-muted-foreground">
         {elapsed !== null && (
           <span className="flex items-center gap-1">
             <Clock className="h-2.5 w-2.5" />
@@ -216,11 +216,11 @@ export function StatsPanel(): React.JSX.Element {
               {formatTokens(totalTokens)}
             </span>
           </div>
-          <div className="mt-0.5 text-[10px] text-muted-foreground">total tokens burnt</div>
+          <div className="mt-0.5 text-[11px] text-muted-foreground">total tokens burnt</div>
           <div className="mt-2">
             <InOutCost input={totalInput} output={totalOutput} cost={totalCost} />
           </div>
-          <div className="mt-1 flex items-center justify-center gap-1 text-[10px] text-muted-foreground">
+          <div className="mt-1 flex items-center justify-center gap-1 text-[11px] text-muted-foreground">
             <Clock className="h-2.5 w-2.5" />
             <span className="font-mono tabular-nums">{formatElapsed(totalTime)}</span>
             <span>total</span>
@@ -244,7 +244,7 @@ export function StatsPanel(): React.JSX.Element {
           />
         ) : (
           turnStats.length === 0 && (
-            <div className="rounded-lg border border-dashed p-3 text-center text-[10px] text-muted-foreground">
+            <div className="rounded-lg border border-dashed p-3 text-center text-[11px] text-muted-foreground">
               Send a message to see live token stats
             </div>
           )

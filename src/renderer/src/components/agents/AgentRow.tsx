@@ -95,7 +95,7 @@ export function AgentRow({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">Provider</label>
+          <label className="text-[11px] text-muted-foreground">Provider</label>
           <Select value={agent.provider} onValueChange={handleProviderChange}>
             <SelectTrigger className="h-8 text-xs">
               {/* SelectValue shows the raw value — render the label instead */}
@@ -112,7 +112,7 @@ export function AgentRow({
           </Select>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">Model</label>
+          <label className="text-[11px] text-muted-foreground">Model</label>
           {models.length > 0 ? (
             <Select value={agent.model} onValueChange={(v) => updateAgent(agent.id, { model: v })}>
               <SelectTrigger className="h-8 text-xs">

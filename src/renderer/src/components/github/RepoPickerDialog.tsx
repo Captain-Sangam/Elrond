@@ -112,13 +112,13 @@ export function RepoPickerDialog({ open, onOpenChange }: RepoPickerDialogProps):
                     <GitBranch className="h-4 w-4 text-success" />
                     <div>
                       <div className="text-sm font-medium">{repo.full_name}</div>
-                      <div className="text-[10px] text-muted-foreground">
+                      <div className="text-[11px] text-muted-foreground">
                         {repo.file_count} files indexed
                       </div>
                     </div>
                   </div>
                   <div className="flex items-center gap-1">
-                    <Badge variant="secondary" className="text-[9px]">
+                    <Badge variant="secondary" className="text-[11px]">
                       <Check className="mr-0.5 h-2.5 w-2.5" />
                       Ready
                     </Badge>
@@ -170,7 +170,7 @@ export function RepoPickerDialog({ open, onOpenChange }: RepoPickerDialogProps):
                         <span className="truncate text-sm">{repo.full_name}</span>
                         {repo.private && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
                       </div>
-                      <div className="flex items-center gap-2 text-[10px] text-muted-foreground">
+                      <div className="flex items-center gap-2 text-[11px] text-muted-foreground">
                         {repo.language && <span>{repo.language}</span>}
                         {repo.stargazers_count > 0 && (
                           <span className="flex items-center gap-0.5">
@@ -181,7 +181,7 @@ export function RepoPickerDialog({ open, onOpenChange }: RepoPickerDialogProps):
                       </div>
                     </div>
                     {isIndexed ? (
-                      <Badge variant="secondary" className="text-[9px] shrink-0">
+                      <Badge variant="secondary" className="text-[11px] shrink-0">
                         <Check className="mr-0.5 h-2.5 w-2.5" />
                         Indexed
                       </Badge>
@@ -189,7 +189,7 @@ export function RepoPickerDialog({ open, onOpenChange }: RepoPickerDialogProps):
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-7 gap-1 text-[10px] shrink-0"
+                        className="h-7 gap-1 text-[11px] shrink-0"
                         onClick={() => handleIndex(repo)}
                         disabled={isCurrentlyIndexing}
                       >

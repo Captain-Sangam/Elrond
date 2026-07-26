@@ -20,9 +20,11 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Code blocks are highlighted from Gothic's `--color-syntax-*` tokens instead of the bundled One Dark theme
 - Gothic's Fustat and JetBrains Mono are bundled locally (latin + latin-ext variable subsets, ~80KB, OFL-1.1). The theme names both families but ships no `@font-face`, so they had been silently falling back to system fonts
 - Alignment: the sidebar title, controls and session-row icons now share one 12px left edge (the title previously used `pl-[78px]` to clear the macOS traffic lights, which read as centered), and tab strips are pulled back 12px so tab text lines up with dialog titles and section headings rather than sitting inside Astryx's per-tab hit-area padding
+- Type scale consolidated to six sizes (11/12/14/16/18px + 20px mono). The 9px and 10px tiers are gone — 89 arbitrary `text-[9px]`/`text-[10px]` values across 16 files collapsed into `text-[11px]`, so a single column no longer stacks four different sizes. Documented in [architecture.md](architecture.md#type-scale)
 
 ### Fixed
 
+- Buttons, tabs and select triggers rendered at Astryx's 16px body base instead of the app's 12px UI text, because Astryx's `size` prop controls height only. This made "New Session" larger than the sidebar title above it, and put four type sizes in the Settings dialog header. Each `components/ui/` wrapper now sets its type explicitly
 - `make export` now forces `electron-rebuild -f -w better-sqlite3` before packaging. Running the test suite leaves the binding built for plain Node's ABI, and packaging that produced an app that launched with **no window**: `initDatabase()` threw, and because the `app.whenReady()` chain has no `.catch()`, the rejection was swallowed and `createWindow()` never ran. See [development.md](development.md#testing)
 
 ### Added

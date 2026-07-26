@@ -36,15 +36,15 @@ export function ProvidersTab({
             <span className={`h-2 w-2 shrink-0 rounded-full ${PROVIDER_DOT_COLORS[name]}`} />
             <span className="text-sm font-medium">{PROVIDER_LABELS[name]}</span>
             {keyPresence[name] ? (
-              <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
+              <Badge className="border-success/30 bg-success/10 text-[11px] text-success">
                 Configured
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-[9px] text-muted-foreground">
+              <Badge variant="outline" className="text-[11px] text-muted-foreground">
                 No key
               </Badge>
             )}
-            <span className="ml-auto text-[10px] text-muted-foreground">
+            <span className="ml-auto text-[11px] text-muted-foreground">
               {usageLabel(name)}
               {cloudModels[name].length > 0 && ` · ${cloudModels[name].length} models`}
             </span>
@@ -61,19 +61,19 @@ export function ProvidersTab({
             {ollamaStatus === 'testing' ? (
               <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
             ) : ollamaStatus === 'connected' ? (
-              <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
+              <Badge className="border-success/30 bg-success/10 text-[11px] text-success">
                 Connected
               </Badge>
             ) : ollamaStatus === 'error' ? (
-              <Badge variant="outline" className="border-destructive/30 text-[9px] text-destructive">
+              <Badge variant="outline" className="border-destructive/30 text-[11px] text-destructive">
                 Unreachable
               </Badge>
             ) : (
-              <Badge variant="outline" className="text-[9px] text-muted-foreground">
+              <Badge variant="outline" className="text-[11px] text-muted-foreground">
                 Not tested
               </Badge>
             )}
-            <span className="ml-auto text-[10px] text-muted-foreground">{usageLabel('ollama')}</span>
+            <span className="ml-auto text-[11px] text-muted-foreground">{usageLabel('ollama')}</span>
             <Button
               variant="ghost"
               size="icon"
@@ -84,28 +84,28 @@ export function ProvidersTab({
               <RefreshCw className="h-3 w-3" />
             </Button>
           </div>
-          <div className="font-mono text-[10px] text-muted-foreground">{ollamaBaseUrl}</div>
+          <div className="font-mono text-[11px] text-muted-foreground">{ollamaBaseUrl}</div>
           {ollamaModels.length > 0 && (
             <div className="flex flex-wrap gap-1">
               {ollamaModels.map((m) => (
-                <Badge key={m} variant="outline" className="text-[9px]">
+                <Badge key={m} variant="outline" className="text-[11px]">
                   {m}
                 </Badge>
               ))}
               {ollamaStatus === 'error' && (
-                <span className="text-[10px] text-muted-foreground">(cached)</span>
+                <span className="text-[11px] text-muted-foreground">(cached)</span>
               )}
             </div>
           )}
           {ollamaStatus === 'error' && ollamaModels.length === 0 && (
-            <p className="text-[10px] text-destructive">
+            <p className="text-[11px] text-destructive">
               Cannot reach the server — is <span className="font-mono">ollama serve</span> running?
             </p>
           )}
         </div>
       </section>
 
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground">
         Manage API keys and the Ollama server URL in{' '}
         {onOpenSettings ? (
           <button

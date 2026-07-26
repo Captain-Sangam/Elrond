@@ -1,5 +1,6 @@
 import * as React from 'react'
 import { Selector } from '@astryxdesign/core/Selector'
+import { cn } from '@renderer/lib/utils'
 
 /**
  * Astryx Selector behind the app's existing compound Select API.
@@ -82,7 +83,17 @@ function Select({
       onChange={(v) => onValueChange(v)}
       options={options}
       placeholder={placeholderText}
-      className={triggerClassName}
+      /*
+       * `[&_*]:text-inherit` because Astryx renders the selected label in an
+       * inner span at the 16px body base, so a text-* class on the trigger alone
+       * doesn't reach it — the same shape as the Button/Tab size regressions.
+       * Call sites all pass their own text-xs, which now cascades inward.
+       *
+       * The dropdown renders in a portal outside this element, so its options
+       * can't inherit from here — renderOption sizes them to match the trigger.
+       */
+      className={cn('[&_*]:text-inherit', triggerClassName)}
+      renderOption={(o) => <span className="text-xs">{o.label ?? o.value}</span>}
     />
   )
 }

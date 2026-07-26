@@ -37,7 +37,7 @@ export function SynthesisPanel({
         </div>
         <div className="flex items-center gap-2">
           {tokenCount !== undefined && tokenCount > 0 && (
-            <span className="text-[10px] text-muted-foreground">{tokenCount} tokens</span>
+            <span className="text-[11px] text-muted-foreground">{tokenCount} tokens</span>
           )}
           {content && (
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>

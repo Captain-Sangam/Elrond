@@ -90,7 +90,7 @@ export function MarkdownContent({ content, className }: MarkdownContentProps): R
                   {/* Header shares the syntax background so it seams cleanly
                       into the highlighted block below. */}
                   <div className="flex items-center justify-between rounded-t-lg border border-b-0 bg-syntax px-4 py-1.5">
-                    <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
+                    <span className="text-[11px] font-medium uppercase tracking-wider text-muted-foreground">
                       {match[1]}
                     </span>
                   </div>

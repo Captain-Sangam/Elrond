@@ -104,8 +104,34 @@ Astryx tokens in `tailwind.config.js`. A few constraints are load-bearing:
   `onChange(value, e)`, and put `className` on their outer wrapper — but the call
   sites need it on the control itself (heights, `pl-8` to clear an overlaid icon,
   `flex-1`), and the composer reads the textarea's own `selectionStart`.
-- Gothic asks for the Fustat and JetBrains Mono webfonts but ships no
-  `@font-face`; they fall back to system fonts unless installed locally.
+- **Astryx's `size` props control height, not text size.** Its components render
+  labels at the 16px body base regardless, so each wrapper sets the type
+  explicitly: `Button` maps size to `text-sm`/`text-xs`/`text-base`, `TabList`
+  uses `[&_button]:text-sm`, and `Selector` needs both `[&_*]:text-inherit` (the
+  trigger label sits in an inner span) and `renderOption` (the dropdown portals
+  outside the trigger, so it can't inherit). Miss any of these and that surface
+  silently jumps to 16px while everything around it stays 11–12px.
+
+### Type scale
+
+Fustat for UI, JetBrains Mono for code and figures. Six sizes, deliberately:
+
+| Size | Use |
+|------|-----|
+| 11px | metadata, badges, chips, hints |
+| 12px | default UI text — labels, buttons, rows, inputs |
+| 14px | sidebar title, panel/section headings, markdown body |
+| 16px | markdown headings (from `prose`) |
+| 18px | dialog titles |
+| 20px mono | the headline stat figure |
+
+The only arbitrary size in use is `text-[11px]`; everything else comes from
+Tailwind's scale. Adding new `text-[Npx]` values (there were 9px and 10px tiers
+before) is what makes a column read as "several different fonts".
+
+Both fonts are bundled in `src/renderer/src/assets/fonts` (latin + latin-ext
+variable subsets, OFL-1.1) because Gothic names them in its tokens but ships no
+`@font-face`, and the app must render offline.
 
 ## Data Storage
 

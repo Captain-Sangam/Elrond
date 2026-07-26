@@ -110,7 +110,7 @@ export function DebatePanel({ rounds, maxRounds, isActive }: DebatePanelProps): 
                 <div className="space-y-3 pl-5">
                   {round.entries.map((entry) => (
                     <div key={entry.agentId} className="space-y-1">
-                      <Badge variant="secondary" className="text-[10px]">
+                      <Badge variant="secondary" className="text-[11px]">
                         {entry.agentName}
                       </Badge>
                       {entry.toolCalls && entry.toolCalls.length > 0 && (
