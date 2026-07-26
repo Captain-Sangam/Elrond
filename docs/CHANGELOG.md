@@ -16,6 +16,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Dialogs run on Astryx's native `<dialog>`: real top-layer stacking, backdrop and Escape handling — which fixes the nested case (the MCP server form over Settings). Selects are now floating listboxes that escape dialog clipping
 - `Input`/`Textarea` remain native elements styled with Astryx tokens; Astryx's Field-wrapped equivalents route `className` to a wrapper, which the sizing and icon-overlay classes depend on. See [architecture.md](architecture.md#styling-notes)
 - Removed the dead `tooltip.tsx` (a no-op provider; real tooltips are native `title` attributes) and dropped the `class-variance-authority` dependency
+- Astryx is the single source of color: `success`/`warning`/`danger`/`info` map to Gothic's semantic tokens, plus `hue-*` for provider identity (which needs to stay distinguishable rather than signal status). No raw Tailwind palette classes or arbitrary hex values remain in the renderer — status UI previously used vivid Tailwind hues (`green-400` = `#4ade80`) against a theme whose success token is a muted `#b3c79a`
+- Code blocks are highlighted from Gothic's `--color-syntax-*` tokens instead of the bundled One Dark theme
+- Gothic's Fustat and JetBrains Mono are bundled locally (latin + latin-ext variable subsets, ~80KB, OFL-1.1). The theme names both families but ships no `@font-face`, so they had been silently falling back to system fonts
+- Alignment: the sidebar title, controls and session-row icons now share one 12px left edge (the title previously used `pl-[78px]` to clear the macOS traffic lights, which read as centered), and tab strips are pulled back 12px so tab text lines up with dialog titles and section headings rather than sitting inside Astryx's per-tab hit-area padding
+
+### Fixed
+
+- `make export` now forces `electron-rebuild -f -w better-sqlite3` before packaging. Running the test suite leaves the binding built for plain Node's ABI, and packaging that produced an app that launched with **no window**: `initDatabase()` threw, and because the `app.whenReady()` chain has no `.catch()`, the rejection was swallowed and `createWindow()` never ran. See [development.md](development.md#testing)
 
 ### Added
 
