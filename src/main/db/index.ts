@@ -27,3 +27,11 @@ export function getDb(): Database.Database {
   }
   return db
 }
+
+// Called on quit so WAL is checkpointed into the main db file rather than left
+// for the next launch to recover.
+export function closeDatabase(): void {
+  if (!db) return
+  db.close()
+  db = null
+}

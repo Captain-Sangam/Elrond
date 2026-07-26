@@ -22,6 +22,13 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Alignment: the sidebar title, controls and session-row icons now share one 12px left edge (the title previously used `pl-[78px]` to clear the macOS traffic lights, which read as centered), and tab strips are pulled back 12px so tab text lines up with dialog titles and section headings rather than sitting inside Astryx's per-tab hit-area padding
 - Type scale consolidated to six sizes (11/12/14/16/18px + 20px mono). The 9px and 10px tiers are gone — 89 arbitrary `text-[9px]`/`text-[10px]` values across 16 files collapsed into `text-[11px]`, so a single column no longer stacks four different sizes. Documented in [architecture.md](architecture.md#type-scale)
 
+**Exit behavior**
+
+- Closing the window now quits the app. `window-all-closed` was deliberately empty so Elrond stayed resident in the menu bar; it left a lingering background process instead
+- Removed the menu-bar tray icon and its menu, which only made sense for an app that outlives its window. Its "New Session" item was dead anyway — nothing in the renderer ever listened for the `new-session` IPC
+- The database is now closed on `will-quit`, so WAL is checkpointed into the main file rather than left for the next launch to recover
+- The global shortcut still focuses the window while the app runs, but no longer launches it from nothing. Verified no strays after close: Electron processes and spawned MCP subprocesses all reach zero
+
 ### Fixed
 
 - Buttons, tabs and select triggers rendered at Astryx's 16px body base instead of the app's 12px UI text, because Astryx's `size` prop controls height only. This made "New Session" larger than the sidebar title above it, and put four type sizes in the Settings dialog header. Each `components/ui/` wrapper now sets its type explicitly

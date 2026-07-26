@@ -74,10 +74,10 @@
 - Live stats rail (toggle in the top bar): pinned session totals (tokens, in/out split, cost, total time), a full card per turn with phase-by-phase breakdown on the live turn, consensus outcomes, and an all-sessions turn counter — turns stack instead of resetting on follow-up questions
 - Scroll freely while agents stream — auto-follow only when pinned to the bottom, with a jump-to-bottom button
 - Collapsible debate rounds with per-round moderator verdicts
-- Syntax-highlighted code blocks (One Dark theme) with copy buttons
+- Syntax-highlighted code blocks (themed from the active Astryx theme's syntax tokens) with copy buttons
 - Styled markdown tables, blockquotes, links, and inline code formatting
-- Global keyboard shortcut (configurable)
-- Menu bar tray icon — always running in background
+- Global keyboard shortcut (configurable) to focus the window while the app is running
+- Closing the window quits the app — no lingering background process
 - Cmd+/- zoom support
 - Export sessions as Markdown or JSON
 
