@@ -59,8 +59,12 @@ export function Sidebar({ onSettingsClick, onRepoClick, onAgentsClick }: Sidebar
 
   return (
     <div className="flex h-full w-64 flex-col border-r bg-background/50">
-      <div className="titlebar-drag flex h-12 items-center pl-[78px] pr-4 pt-1">
-        <h1 className="text-sm font-semibold tracking-tight titlebar-no-drag">Elrond</h1>
+      {/* The tall row keeps a drag surface clear of the macOS traffic lights;
+          the title itself aligns with the controls below it, not with the
+          lights, so the sidebar has one left edge. */}
+      <div className="titlebar-drag h-12 pt-1" />
+      <div className="px-3 pb-2">
+        <h1 className="titlebar-no-drag text-sm font-semibold tracking-tight">Elrond</h1>
       </div>
 
       <div className="flex gap-1.5 px-3 pb-2">
@@ -105,13 +109,13 @@ export function Sidebar({ onSettingsClick, onRepoClick, onAgentsClick }: Sidebar
         </div>
       </div>
 
-      <ScrollArea className="flex-1 overflow-y-auto px-2">
+      <ScrollArea className="flex-1 overflow-y-auto">
         <div className="space-y-0.5 pb-4">
           {sessions.map((session) => (
             <div
               key={session.id}
               className={cn(
-                'group flex items-center gap-2 rounded-md px-2 py-1.5 text-sm cursor-pointer transition-colors',
+                'group flex items-center gap-2 rounded-md px-3 py-1.5 text-sm cursor-pointer transition-colors',
                 activeSessionId === session.id
                   ? 'bg-accent text-accent-foreground'
                   : 'hover:bg-accent/50'
@@ -127,7 +131,7 @@ export function Sidebar({ onSettingsClick, onRepoClick, onAgentsClick }: Sidebar
               )}
               <div className="flex-1 truncate">
                 <div className="truncate text-xs font-medium">{session.title}</div>
-                <div className="text-[10px] text-muted-foreground">
+                <div className="text-[11px] leading-tight text-muted-foreground">
                   {formatRelativeTime(session.updated_at)}
                 </div>
               </div>

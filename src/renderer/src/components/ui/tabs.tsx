@@ -1,5 +1,6 @@
 import React, { createContext, useContext } from 'react'
 import { Tab, TabList } from '@astryxdesign/core/TabList'
+import { cn } from '@renderer/lib/utils'
 
 /**
  * Astryx TabList/Tab behind the app's existing Tabs API.
@@ -38,7 +39,17 @@ export function TabsList({
 }): React.JSX.Element {
   const ctx = useContext(TabsContext)
   return (
-    <TabList value={ctx.value} onChange={ctx.setValue} className={className}>
+    <TabList
+      value={ctx.value}
+      onChange={ctx.setValue}
+      /*
+       * Astryx pads each Tab 12px horizontally for its hit area, which pushes the
+       * first tab's *text* 12px right of the dialog title and section headings.
+       * Pull the strip back by that much so the text baselines line up, and the
+       * hover/click area still extends past it.
+       */
+      className={cn('-ml-3', className)}
+    >
       {children}
     </TabList>
   )
