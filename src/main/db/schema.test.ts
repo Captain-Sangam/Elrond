@@ -10,7 +10,7 @@ const SEEDED_DEFAULTS: [string, string][] = [
   ['synthesizer', 'anthropic'],
   ['enableDebate', 'true'],
   ['maxDebateRounds', '3'],
-  ['globalShortcut', 'CommandOrControl+Shift+Space'],
+  ['globalShortcut', 'Control+Shift+Space'],
   ['submitKey', 'CmdEnter'],
   ['systemPrompt', ''],
   ['setupComplete', 'false']
@@ -465,6 +465,24 @@ describe('maintenance rewrites on every run', () => {
     runMigrations(db)
     expect(db.prepare('SELECT value FROM settings WHERE key = ?').get('google_model')).toEqual({
       value: 'gemini-2.0-flash'
+    })
+  })
+
+  it('moves the old CommandOrControl shortcut default to Control, keeping user-picked ones', () => {
+    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run(
+      'CommandOrControl+Shift+Space',
+      'globalShortcut'
+    )
+    runMigrations(db)
+    expect(db.prepare('SELECT value FROM settings WHERE key = ?').get('globalShortcut')).toEqual({
+      value: 'Control+Shift+Space'
+    })
+
+    // A shortcut the user chose is left untouched
+    db.prepare('UPDATE settings SET value = ? WHERE key = ?').run('Alt+Space', 'globalShortcut')
+    runMigrations(db)
+    expect(db.prepare('SELECT value FROM settings WHERE key = ?').get('globalShortcut')).toEqual({
+      value: 'Alt+Space'
     })
   })
 

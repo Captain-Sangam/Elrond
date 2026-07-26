@@ -28,6 +28,7 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 - Removed the menu-bar tray icon and its menu, which only made sense for an app that outlives its window. Its "New Session" item was dead anyway — nothing in the renderer ever listened for the `new-session` IPC
 - The database is now closed on `will-quit`, so WAL is checkpointed into the main file rather than left for the next launch to recover
 - The global shortcut still focuses the window while the app runs, but no longer launches it from nothing. Verified no strays after close: Electron processes and spawned MCP subprocesses all reach zero
+- The default shortcut is now `Control+Shift+Space` (was `CommandOrControl+Shift+Space`, i.e. Cmd on macOS). Existing installs still sitting on the old default are migrated; a shortcut you picked yourself is left alone
 
 ### Fixed
 

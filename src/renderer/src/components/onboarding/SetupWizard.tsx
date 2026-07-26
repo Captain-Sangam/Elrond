@@ -35,7 +35,8 @@ export function SetupWizard(): React.JSX.Element {
     anthropic: 'claude-sonnet-4-5-20250514',
     google: 'gemini-pro-latest'
   })
-  const [shortcutDisplay, setShortcutDisplay] = useState('⌘ + Shift + Space')
+  // Mirrors the seeded default in db/schema.ts
+  const [shortcutDisplay, setShortcutDisplay] = useState('Ctrl + Shift + Space')
   const [availableModels, setAvailableModels] = useState<Record<CloudProvider, string[]>>({
     openai: [],
     anthropic: [],
@@ -147,8 +148,11 @@ export function SetupWizard(): React.JSX.Element {
     if (parts.length > 1) {
       setShortcutDisplay(parts.join(' + '))
 
+      // Keep Command and Control distinct — collapsing both to
+      // CommandOrControl made it impossible to record a Control-only shortcut.
       const electronParts: string[] = []
-      if (e.metaKey || e.ctrlKey) electronParts.push('CommandOrControl')
+      if (e.metaKey) electronParts.push('Command')
+      if (e.ctrlKey) electronParts.push('Control')
       if (e.altKey) electronParts.push('Alt')
       if (e.shiftKey) electronParts.push('Shift')
       if (!['Meta', 'Control', 'Alt', 'Shift'].includes(e.key)) {

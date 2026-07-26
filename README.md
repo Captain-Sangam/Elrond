@@ -37,7 +37,7 @@ A setup wizard walks you through:
 
 1. **API Keys** — Enter and test keys for each cloud provider (stored in macOS Keychain), or skip them entirely if a local Ollama server with pulled models is detected
 2. **Model Selection** — Dropdowns populated live from each provider's API; local-only setups get agents created from your pulled Ollama models automatically
-3. **Global Shortcut** — Set a keyboard shortcut to bring Elrond's window to the front while it's running (default: `Cmd+Shift+Space`). Closing the window quits the app, so the shortcut launches nothing on its own
+3. **Global Shortcut** — Set a keyboard shortcut to bring Elrond's window to the front while it's running (default: `Control+Shift+Space`). Closing the window quits the app, so the shortcut launches nothing on its own
 
 After setup, manage the council in the **Agents** dialog (bot icon in the sidebar): add or remove agents, assign any provider + model to each — including several local Ollama models debating each other — and pick which agent synthesizes the final answer.
 

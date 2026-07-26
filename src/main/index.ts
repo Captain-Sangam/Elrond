@@ -68,7 +68,7 @@ function registerGlobalShortcut(): void {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('globalShortcut') as
     | { value: string }
     | undefined
-  const shortcut = row?.value || 'CommandOrControl+Shift+Space'
+  const shortcut = row?.value || 'Control+Shift+Space'
 
   globalShortcut.unregisterAll()
 
