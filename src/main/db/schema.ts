@@ -170,6 +170,13 @@ export function runMigrations(db: Database.Database): void {
     "UPDATE mcp_servers SET transport = replace(transport, 'https://mcp.linear.app/sse', 'https://mcp.linear.app/mcp') WHERE source = 'linear'"
   )
 
+  // The default shortcut moved from CommandOrControl+Shift+Space (Cmd on macOS)
+  // to Control+Shift+Space. Only rewrite installs still sitting on the old
+  // default — a shortcut the user picked themselves is left alone.
+  db.exec(
+    "UPDATE settings SET value = 'Control+Shift+Space' WHERE key = 'globalShortcut' AND value = 'CommandOrControl+Shift+Space'"
+  )
+
   seedDefaults(db)
 }
 
@@ -240,7 +247,7 @@ function seedDefaults(db: Database.Database): void {
     ['synthesizer', 'anthropic'],
     ['enableDebate', 'true'],
     ['maxDebateRounds', '3'],
-    ['globalShortcut', 'CommandOrControl+Shift+Space'],
+    ['globalShortcut', 'Control+Shift+Space'],
     ['submitKey', 'CmdEnter'],
     ['systemPrompt', ''],
     ['setupComplete', 'false']

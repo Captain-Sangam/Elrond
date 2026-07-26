@@ -74,7 +74,7 @@ src/
           MCPServerFormDialog.tsx  Add/edit custom MCP servers
         onboarding/
           SetupWizard.tsx        First-launch setup flow
-        ui/                      shadcn/ui primitive components
+        ui/                      Thin wrappers over Astryx components
       stores/
         sessionStore.ts          Zustand: sessions, messages, streaming state
         settingsStore.ts         Zustand: preferences
@@ -202,7 +202,10 @@ The debate and synthesis prompts in `src/main/orchestrator/prompts.ts` are the m
 - TypeScript throughout, strict mode
 - React functional components with hooks
 - Zustand for state management
-- shadcn/ui patterns for UI components
+- Astryx components via the wrappers in `components/ui/`; Tailwind for layout
+  only, and colors/sizes from the tokens and type scale in
+  [architecture.md](architecture.md#styling-notes) — no raw palette classes
+  (`green-400`) or new `text-[Npx]` values
 - No unnecessary comments — code should be self-documenting
 - `npm run build` must pass with no errors
 - Unit tests live next to the module they cover (`src/**/*.test.ts`, run with

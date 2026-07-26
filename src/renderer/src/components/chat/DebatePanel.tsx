@@ -43,14 +43,14 @@ function VerdictBanner({ round }: { round: DebateRoundView }): React.JSX.Element
   if (!v) return null
   if (v.converged) {
     return (
-      <div className="flex items-center gap-2 rounded-md border border-green-500/20 bg-green-500/5 px-2.5 py-1.5 text-xs text-green-400">
+      <div className="flex items-center gap-2 rounded-md border border-success/20 bg-success/5 px-2.5 py-1.5 text-xs text-success">
         <CheckCircle2 className="h-3 w-3 shrink-0" />
         <span>Moderator: {v.summary || `consensus reached after round ${round.round}`}</span>
       </div>
     )
   }
   return (
-    <div className="flex items-center gap-2 rounded-md border border-amber-500/20 bg-amber-500/5 px-2.5 py-1.5 text-xs text-amber-400">
+    <div className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-2.5 py-1.5 text-xs text-warning">
       <Scale className="h-3 w-3 shrink-0" />
       <span>
         Moderator: {v.summary || 'agents still disagree'}
@@ -110,7 +110,7 @@ export function DebatePanel({ rounds, maxRounds, isActive }: DebatePanelProps): 
                 <div className="space-y-3 pl-5">
                   {round.entries.map((entry) => (
                     <div key={entry.agentId} className="space-y-1">
-                      <Badge variant="secondary" className="text-[10px]">
+                      <Badge variant="secondary" className="text-[11px]">
                         {entry.agentName}
                       </Badge>
                       {entry.toolCalls && entry.toolCalls.length > 0 && (

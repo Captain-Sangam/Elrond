@@ -10,17 +10,17 @@ export const PROVIDER_LABELS: Record<ProviderName, string> = {
 // Colors follow the provider, not the agent — two Ollama agents share purple
 // and are told apart by their names
 export const PROVIDER_COLORS: Record<ProviderName, string> = {
-  openai: 'bg-green-500/10 text-green-400 border-green-500/20',
-  anthropic: 'bg-orange-500/10 text-orange-400 border-orange-500/20',
-  google: 'bg-blue-500/10 text-blue-400 border-blue-500/20',
-  ollama: 'bg-purple-500/10 text-purple-400 border-purple-500/20'
+  openai: 'bg-success/10 text-success border-success/20',
+  anthropic: 'bg-hue-orange/10 text-hue-orange border-hue-orange/20',
+  google: 'bg-info/10 text-info border-info/20',
+  ollama: 'bg-hue-purple/10 text-hue-purple border-hue-purple/20'
 }
 
 export const PROVIDER_DOT_COLORS: Record<ProviderName, string> = {
-  openai: 'bg-green-400',
-  anthropic: 'bg-orange-400',
-  google: 'bg-blue-400',
-  ollama: 'bg-purple-400'
+  openai: 'bg-success',
+  anthropic: 'bg-hue-orange',
+  google: 'bg-info',
+  ollama: 'bg-hue-purple'
 }
 
 export const CLOUD_PROVIDERS: Exclude<ProviderName, 'ollama'>[] = ['openai', 'anthropic', 'google']

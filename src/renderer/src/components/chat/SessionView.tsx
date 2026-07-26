@@ -246,9 +246,9 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
         <div ref={scrollRef} onScroll={handleScroll} className="flex-1 overflow-y-auto px-6 py-4">
           <div className="mx-auto max-w-5xl space-y-6">
             {activeSession?.repo_id && (
-              <div className="flex items-center gap-2 rounded-lg border border-green-500/20 bg-green-500/5 px-3 py-2">
-                <GitBranch className="h-4 w-4 text-green-400" />
-                <span className="text-xs font-medium text-green-400">Code Session</span>
+              <div className="flex items-center gap-2 rounded-lg border border-success/20 bg-success/5 px-3 py-2">
+                <GitBranch className="h-4 w-4 text-success" />
+                <span className="text-xs font-medium text-success">Code Session</span>
                 <span className="text-xs text-muted-foreground">
                   Agents have access to the indexed repository
                 </span>
@@ -346,7 +346,7 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
             {/* Non-fatal notices — shown during AND after the turn (a failed
                 turn completes instantly, so these must outlive isDeliberating) */}
             {notices.map((notice, i) => (
-              <div key={i} className="text-xs text-amber-400">
+              <div key={i} className="text-xs text-warning">
                 {notice}
               </div>
             ))}

@@ -1,130 +1,129 @@
 import * as React from 'react'
+import { Selector } from '@astryxdesign/core/Selector'
 import { cn } from '@renderer/lib/utils'
-import { ChevronDown } from 'lucide-react'
 
-interface SelectProps {
+/**
+ * Astryx Selector behind the app's existing compound Select API.
+ *
+ * Astryx takes a flat `options` array rather than JSX children, so this shim
+ * collects the SelectItem children into that array. Keeping the compound shape
+ * makes this a one-file change instead of rewriting all 7 call sites, and
+ * Selector's `className` lands on its trigger button, so their sizing classes
+ * (h-8 w-20 / w-40 / w-48) still apply.
+ *
+ * Note: Astryx renders the selected option's *label*. Two call sites previously
+ * worked around the old SelectValue showing the raw value by rendering their own
+ * <span> label — that workaround is now redundant but harmless: SelectTrigger's
+ * children are ignored, so the label shown comes from the matching option.
+ */
+/** Flattens a SelectItem's children into the plain string Astryx wants. */
+function textOf(node: React.ReactNode): string {
+  if (node === null || node === undefined || typeof node === 'boolean') return ''
+  if (typeof node === 'string' || typeof node === 'number') return String(node)
+  if (Array.isArray(node)) return node.map(textOf).join('')
+  if (React.isValidElement(node)) {
+    return textOf((node.props as { children?: React.ReactNode }).children)
+  }
+  return ''
+}
+
+function Select({
+  value,
+  onValueChange,
+  children,
+  placeholder
+}: {
   value: string
   onValueChange: (value: string) => void
   children: React.ReactNode
   placeholder?: string
-}
-
-interface SelectContextValue {
-  value: string
-  onValueChange: (value: string) => void
-  open: boolean
-  setOpen: (open: boolean) => void
-}
-
-const SelectContext = React.createContext<SelectContextValue>({
-  value: '',
-  onValueChange: () => {},
-  open: false,
-  setOpen: () => {}
-})
-
-function Select({ value, onValueChange, children }: SelectProps): React.JSX.Element {
-  const [open, setOpen] = React.useState(false)
-  return (
-    <SelectContext.Provider value={{ value, onValueChange, open, setOpen }}>
-      <div className="relative">{children}</div>
-    </SelectContext.Provider>
-  )
-}
-
-function SelectTrigger({
-  children,
-  className
-}: {
-  children: React.ReactNode
-  className?: string
 }): React.JSX.Element {
-  const { open, setOpen } = React.useContext(SelectContext)
+  const options: Array<{ value: string; label: string; disabled?: boolean }> = []
+  let triggerClassName: string | undefined
+  let placeholderText = placeholder
+
+  // Walk the compound children to collect options and the trigger's className.
+  const visit = (node: React.ReactNode): void => {
+    React.Children.forEach(node, (child) => {
+      if (!React.isValidElement(child)) return
+      const props = child.props as {
+        children?: React.ReactNode
+        className?: string
+        value?: string
+        disabled?: boolean
+        placeholder?: string
+      }
+      if (child.type === SelectTrigger) {
+        triggerClassName = props.className
+        visit(props.children)
+        return
+      }
+      if (child.type === SelectValue) {
+        placeholderText = props.placeholder ?? placeholderText
+        return
+      }
+      if (child.type === SelectItem) {
+        options.push({
+          value: props.value ?? '',
+          label: textOf(props.children).trim(),
+          disabled: props.disabled
+        })
+        return
+      }
+      visit(props.children)
+    })
+  }
+  visit(children)
+
   return (
-    <button
-      type="button"
-      onClick={() => setOpen(!open)}
-      className={cn(
-        'flex h-10 w-full items-center justify-between rounded-md border border-input bg-background px-3 py-2 text-sm ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50',
-        className
-      )}
-    >
-      {children}
-      <ChevronDown className="h-4 w-4 opacity-50" />
-    </button>
+    <Selector
+      label={placeholderText ?? 'Select'}
+      isLabelHidden
+      value={value}
+      onChange={(v) => onValueChange(v)}
+      options={options}
+      placeholder={placeholderText}
+      /*
+       * `[&_*]:text-inherit` because Astryx renders the selected label in an
+       * inner span at the 16px body base, so a text-* class on the trigger alone
+       * doesn't reach it — the same shape as the Button/Tab size regressions.
+       * Call sites all pass their own text-xs, which now cascades inward.
+       *
+       * The dropdown renders in a portal outside this element, so its options
+       * can't inherit from here — renderOption sizes them to match the trigger.
+       */
+      className={cn('[&_*]:text-inherit', triggerClassName)}
+      renderOption={(o) => <span className="text-xs">{o.label ?? o.value}</span>}
+    />
   )
 }
 
-function SelectValue({ placeholder }: { placeholder?: string }): React.JSX.Element {
-  const { value } = React.useContext(SelectContext)
-  return <span className={!value ? 'text-muted-foreground' : ''}>{value || placeholder}</span>
-}
-
-function SelectContent({
-  children,
-  className
-}: {
-  children: React.ReactNode
+/* Markers consumed by Select's child walk — they render nothing themselves. */
+function SelectTrigger(_: {
+  children?: React.ReactNode
   className?: string
 }): React.JSX.Element | null {
-  const { open, setOpen } = React.useContext(SelectContext)
-
-  React.useEffect(() => {
-    if (!open) return
-    const handler = (e: MouseEvent): void => {
-      const target = e.target as HTMLElement
-      if (!target.closest('[data-select-content]')) {
-        setOpen(false)
-      }
-    }
-    document.addEventListener('click', handler, { capture: true })
-    return () => document.removeEventListener('click', handler, { capture: true })
-  }, [open, setOpen])
-
-  if (!open) return null
-
-  return (
-    <div
-      data-select-content
-      className={cn(
-        'absolute z-50 mt-1 max-h-60 w-full overflow-auto rounded-md border bg-popover p-1 text-popover-foreground shadow-md',
-        className
-      )}
-    >
-      {children}
-    </div>
-  )
+  return null
 }
 
-function SelectItem({
-  value,
-  children,
-  className,
-  disabled
-}: {
+function SelectValue(_: { placeholder?: string }): React.JSX.Element | null {
+  return null
+}
+
+function SelectContent(_: {
+  children?: React.ReactNode
+  className?: string
+}): React.JSX.Element | null {
+  return null
+}
+
+function SelectItem(_: {
   value: string
-  children: React.ReactNode
+  children?: React.ReactNode
   className?: string
   disabled?: boolean
-}): React.JSX.Element {
-  const { value: selectedValue, onValueChange, setOpen } = React.useContext(SelectContext)
-  return (
-    <div
-      className={cn(
-        'relative flex w-full cursor-pointer select-none items-center rounded-sm py-1.5 px-2 text-sm outline-none hover:bg-accent hover:text-accent-foreground',
-        selectedValue === value && 'bg-accent',
-        disabled && 'pointer-events-none opacity-50',
-        className
-      )}
-      onClick={() => {
-        if (disabled) return
-        onValueChange(value)
-        setOpen(false)
-      }}
-    >
-      {children}
-    </div>
-  )
+}): React.JSX.Element | null {
+  return null
 }
 
 export { Select, SelectTrigger, SelectValue, SelectContent, SelectItem }

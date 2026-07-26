@@ -1,16 +1,14 @@
-import { app, shell, BrowserWindow, globalShortcut, Tray, Menu, nativeImage, protocol, net } from 'electron'
+import { app, shell, BrowserWindow, globalShortcut, Menu, nativeImage, protocol, net } from 'electron'
 import { join, resolve } from 'path'
 import { pathToFileURL } from 'url'
 import { electronApp, optimizer, is } from '@electron-toolkit/utils'
 import { registerAllIpcHandlers } from './ipc'
-import { initDatabase } from './db'
-import { getDb } from './db'
+import { initDatabase, closeDatabase, getDb } from './db'
 import { getAttachmentsDir } from './attachments'
 import { seedAgentsIfNeeded } from './agentStore'
 import { initMcpManager, shutdownMcpManager } from './mcp/manager'
 
 let mainWindow: BrowserWindow | null = null
-let tray: Tray | null = null
 
 // Serves stored attachments to the renderer as <img src="elrond-attachment://<id>">
 protocol.registerSchemesAsPrivileged([{ scheme: 'elrond-attachment', privileges: { stream: true } }])
@@ -70,7 +68,7 @@ function registerGlobalShortcut(): void {
   const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('globalShortcut') as
     | { value: string }
     | undefined
-  const shortcut = row?.value || 'CommandOrControl+Shift+Space'
+  const shortcut = row?.value || 'Control+Shift+Space'
 
   globalShortcut.unregisterAll()
 
@@ -90,52 +88,6 @@ function registerGlobalShortcut(): void {
   if (!registered) {
     console.error(`Failed to register global shortcut: ${shortcut}`)
   }
-}
-
-function createTray(): void {
-  const icon = nativeImage.createFromDataURL(
-    'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAABQAAAAUCAYAAACNiR0NAAAACXBIWXMAAAsTAAALEwEAmpwYAAABE0lEQVQ4y62UMQ6DMBAE5/4/6VJQUCBRICEhoqCgoKCgoKCgoKCgoKBIkSJFihQpUqRI8e8vHmODOZKcZKXV+ry+9Z4N8AO0QA+MwAKswA7cADdMAO8vYEGKAi5AgwIuQIsCLkCHAi5AjwIuwIACLsCAAt6AB58TLmCJAmb8XUC2Wlk3sMUXF9BUdguYcAUaFHABWhRwAToUcAF6FHABBhRwAQYU8PQBerwr4NLlX8AJaFDABWhQwAVoUcAF6FDAB/AA8OFV/gVsyL+AC9igP+ACdCjgAvQo4AIMKOACDCjgAowo4AKMKOD0AXq8K+DS5V/ACWhQwAVoUMAFaFHABehQwAXoUcAHpI5s4+4D85k/M/wBM1xhX//h9sAAAAASUVORK5CYII='
-  )
-  icon.setTemplateImage(true)
-  tray = new Tray(icon)
-  tray.setToolTip('Elrond')
-
-  const contextMenu = Menu.buildFromTemplate([
-    {
-      label: 'Show Elrond',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show()
-          mainWindow.focus()
-        } else {
-          createWindow()
-        }
-      }
-    },
-    {
-      label: 'New Session',
-      click: () => {
-        if (mainWindow) {
-          mainWindow.show()
-          mainWindow.focus()
-          mainWindow.webContents.send('new-session')
-        }
-      }
-    },
-    { type: 'separator' },
-    {
-      label: 'Quit Elrond',
-      click: () => app.quit()
-    }
-  ])
-
-  tray.setContextMenu(contextMenu)
-  tray.on('click', () => {
-    if (mainWindow) {
-      mainWindow.show()
-      mainWindow.focus()
-    }
-  })
 }
 
 function buildAppMenu(): void {
@@ -208,7 +160,6 @@ app.whenReady().then(async () => {
   registerAllIpcHandlers()
   initMcpManager()
   createWindow()
-  createTray()
   registerGlobalShortcut()
 
   app.on('activate', () => {
@@ -219,12 +170,15 @@ app.whenReady().then(async () => {
 })
 
 app.on('window-all-closed', () => {
-  // Keep running in tray on macOS
+  // Closing the window exits the app — no lingering menu-bar process. The
+  // global shortcut therefore only summons the app while it is running.
+  app.quit()
 })
 
 app.on('will-quit', () => {
   globalShortcut.unregisterAll()
   shutdownMcpManager()
+  closeDatabase()
 })
 
 export { mainWindow }

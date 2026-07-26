@@ -7,7 +7,7 @@ export function registerShortcutHandlers(): void {
     const row = db.prepare('SELECT value FROM settings WHERE key = ?').get('globalShortcut') as
       | { value: string }
       | undefined
-    return row?.value || 'CommandOrControl+Shift+Space'
+    return row?.value || 'Control+Shift+Space'
   })
 
   ipcMain.handle('shortcut:set', (_, shortcut: string) => {

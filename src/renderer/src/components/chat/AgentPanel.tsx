@@ -41,19 +41,19 @@ export function AgentPanel({
       <div className="flex items-center justify-between border-b px-3 py-2">
         <div className="flex items-center gap-2">
           {/* The agent name embeds provider:model, so no separate model label */}
-          <Badge variant="outline" className={cn('text-[10px]', PROVIDER_COLORS[provider])}>
+          <Badge variant="outline" className={cn('text-[11px]', PROVIDER_COLORS[provider])}>
             {agentName}
           </Badge>
         </div>
         <div className="flex items-center gap-1">
           {tokenCount !== undefined && tokenCount > 0 && (
-            <span className="text-[10px] text-muted-foreground">{tokenCount} tokens</span>
+            <span className="text-[11px] text-muted-foreground">{tokenCount} tokens</span>
           )}
           {isStreaming && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
           {content && (
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
               {copied ? (
-                <Check className="h-3 w-3 text-green-400" />
+                <Check className="h-3 w-3 text-success" />
               ) : (
                 <Copy className="h-3 w-3" />
               )}

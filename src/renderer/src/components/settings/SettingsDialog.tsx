@@ -148,7 +148,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
 
   const statusIcon = (status: KeyTestStatus, fallback: React.ReactNode): React.ReactNode => {
     if (status === 'testing') return <Loader2 className="h-3 w-3 animate-spin" />
-    if (status === 'valid') return <Check className="h-3 w-3 text-green-400" />
+    if (status === 'valid') return <Check className="h-3 w-3 text-success" />
     if (status === 'invalid') return <AlertTriangle className="h-3 w-3 text-destructive" />
     return fallback
   }
@@ -200,7 +200,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 <div className="flex items-center justify-between">
                   <div>
                     <h4 className="text-xs font-medium">Max debate rounds</h4>
-                    <p className="text-[10px] text-muted-foreground">
+                    <p className="text-[11px] text-muted-foreground">
                       A moderator ends the debate early once agents agree. Each round makes one
                       call per agent plus a moderator check.
                     </p>
@@ -303,7 +303,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 <Server className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">Ollama (local)</h3>
                 {ollamaStatus === 'connected' && (
-                  <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                  <Badge className="border-success/30 bg-success/10 text-[11px] text-success">
                     Connected
                   </Badge>
                 )}
@@ -344,7 +344,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                     {ollamaStatus === 'testing' ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : ollamaStatus === 'connected' ? (
-                      <Check className="h-3 w-3 text-green-400" />
+                      <Check className="h-3 w-3 text-success" />
                     ) : ollamaStatus === 'error' ? (
                       <AlertTriangle className="h-3 w-3 text-destructive" />
                     ) : (
@@ -354,7 +354,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                   </Button>
                 </div>
                 {ollamaStatus === 'error' && (
-                  <p className="text-[10px] text-destructive">
+                  <p className="text-[11px] text-destructive">
                     Cannot reach Ollama at {ollamaBaseUrl} — is{' '}
                     <span className="font-mono">ollama serve</span> running?
                   </p>
@@ -376,7 +376,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                     </div>
                     <div className="flex flex-wrap gap-1">
                       {ollamaModels.map((m) => (
-                        <Badge key={m} variant="outline" className="text-[9px]">
+                        <Badge key={m} variant="outline" className="text-[11px]">
                           {m}
                         </Badge>
                       ))}
@@ -384,7 +384,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                   </div>
                 )}
                 {ollamaStatus === 'connected' && ollamaModels.length === 0 && (
-                  <p className="text-[10px] text-amber-400">
+                  <p className="text-[11px] text-warning">
                     Connected, but no models found — pull one with{' '}
                     <span className="font-mono">ollama pull llama3.2</span>
                   </p>
@@ -408,7 +408,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 <GitBranch className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">GitHub</h3>
                 {githubStatus === 'valid' && (
-                  <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                  <Badge className="border-success/30 bg-success/10 text-[11px] text-success">
                     Connected
                   </Badge>
                 )}
@@ -439,7 +439,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                       Test
                     </Button>
                   </div>
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground">
                     Generate one at{' '}
                     <a
                       href="https://github.com/settings/tokens/new?scopes=repo&description=Elrond"
@@ -462,7 +462,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                     placeholder="my-org (comma-separated for multiple)"
                     className="h-8 text-xs"
                   />
-                  <p className="text-[10px] text-muted-foreground">
+                  <p className="text-[11px] text-muted-foreground">
                     Repos from these orgs will appear in the{' '}
                     <span className="font-mono">/github</span> dropdown.
                   </p>
@@ -480,7 +480,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 <Globe className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">Web Search</h3>
                 {tavilyStatus === 'valid' && (
-                  <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                  <Badge className="border-success/30 bg-success/10 text-[11px] text-success">
                     Connected
                   </Badge>
                 )}
@@ -510,7 +510,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                     Test
                   </Button>
                 </div>
-                <p className="text-[10px] text-muted-foreground">
+                <p className="text-[11px] text-muted-foreground">
                   Sign up free at{' '}
                   <a
                     href="https://app.tavily.com"

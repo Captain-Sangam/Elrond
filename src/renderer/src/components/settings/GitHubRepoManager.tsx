@@ -72,7 +72,7 @@ export function GitHubRepoManager({ hasToken, active }: GitHubRepoManagerProps):
   return (
     <div className="space-y-2">
       <h4 className="text-xs font-medium">Repositories</h4>
-      <p className="text-[10px] text-muted-foreground">
+      <p className="text-[11px] text-muted-foreground">
         Indexed repos give the agents searchable source code, not just PRs, issues and commits.
       </p>
 
@@ -108,7 +108,7 @@ export function GitHubRepoManager({ hasToken, active }: GitHubRepoManagerProps):
                       <span className="truncate text-xs font-medium">{repo.full_name}</span>
                       {repo.private && <Lock className="h-3 w-3 shrink-0 text-muted-foreground" />}
                     </div>
-                    <div className="text-[10px] text-muted-foreground">
+                    <div className="text-[11px] text-muted-foreground">
                       {busy
                         ? INDEX_STAGE_LABELS[prog!.stage]
                         : prog?.stage === 'error'
@@ -124,7 +124,7 @@ export function GitHubRepoManager({ hasToken, active }: GitHubRepoManagerProps):
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                     ) : indexed ? (
                       <>
-                        <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                        <Badge className="border-success/30 bg-success/10 text-[11px] text-success">
                           <Check className="mr-0.5 h-2.5 w-2.5" />
                           Indexed
                         </Badge>
@@ -147,7 +147,7 @@ export function GitHubRepoManager({ hasToken, active }: GitHubRepoManagerProps):
                       <Button
                         variant="outline"
                         size="sm"
-                        className="h-6 gap-1 text-[10px]"
+                        className="h-6 gap-1 text-[11px]"
                         onClick={() => handleIndex(repo)}
                       >
                         <Download className="h-3 w-3" />

@@ -203,7 +203,7 @@ export function MCPServerFormDialog({
                   placeholder="-y my-mcp-server --flag"
                   className="h-8 font-mono text-xs"
                 />
-                <p className="text-[10px] text-muted-foreground">Space-separated.</p>
+                <p className="text-[11px] text-muted-foreground">Space-separated.</p>
               </div>
             </>
           ) : (
@@ -224,7 +224,7 @@ export function MCPServerFormDialog({
               <Button
                 variant="outline"
                 size="sm"
-                className="h-6 gap-1 text-[10px]"
+                className="h-6 gap-1 text-[11px]"
                 onClick={() =>
                   setRows((prev) => [...prev, { field: '', value: '', secret: false, hasStored: false }])
                 }
@@ -249,7 +249,7 @@ export function MCPServerFormDialog({
                   className="h-7 flex-[2] font-mono text-xs"
                 />
                 <label
-                  className="flex shrink-0 cursor-pointer items-center gap-1 text-[10px] text-muted-foreground"
+                  className="flex shrink-0 cursor-pointer items-center gap-1 text-[11px] text-muted-foreground"
                   title="Store the value in the macOS Keychain instead of the database"
                 >
                   <input
@@ -271,7 +271,7 @@ export function MCPServerFormDialog({
             ))}
           </div>
 
-          {error && <p className="text-[10px] text-destructive">{error}</p>}
+          {error && <p className="text-[11px] text-destructive">{error}</p>}
 
           <div className="flex justify-end gap-2 pt-2">
             <Button variant="outline" size="sm" onClick={() => onOpenChange(false)}>

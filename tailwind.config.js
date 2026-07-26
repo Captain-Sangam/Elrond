@@ -1,3 +1,15 @@
+/**
+ * Tailwind is kept for layout utilities only; all colors and radii resolve to
+ * Astryx (Gothic) design tokens. The official `@astryxdesign/core/tailwind-theme.css`
+ * bridge is Tailwind v4-only (`@theme inline`), so v3 maps the tokens here.
+ *
+ * `color-mix` wrapping is load-bearing: it keeps Tailwind's `/opacity` modifiers
+ * working (bg-muted/30, hover:bg-accent/50, ...). A bare `var(--token)` would
+ * silently drop the alpha.
+ */
+const tok = (name) =>
+  `color-mix(in srgb, var(${name}) calc(<alpha-value> * 100%), transparent)`
+
 /** @type {import('tailwindcss').Config} */
 module.exports = {
   darkMode: 'class',
@@ -5,44 +17,77 @@ module.exports = {
   theme: {
     extend: {
       colors: {
-        border: 'hsl(var(--border))',
-        input: 'hsl(var(--input))',
-        ring: 'hsl(var(--ring))',
-        background: 'hsl(var(--background))',
-        foreground: 'hsl(var(--foreground))',
+        border: tok('--color-border'),
+        input: tok('--color-border'),
+        ring: tok('--color-text-accent'),
+        background: tok('--color-background-body'),
+        foreground: tok('--color-text-primary'),
         primary: {
-          DEFAULT: 'hsl(var(--primary))',
-          foreground: 'hsl(var(--primary-foreground))'
+          DEFAULT: tok('--color-text-accent'),
+          foreground: tok('--color-on-accent')
         },
         secondary: {
-          DEFAULT: 'hsl(var(--secondary))',
-          foreground: 'hsl(var(--secondary-foreground))'
+          DEFAULT: tok('--color-background-muted'),
+          foreground: tok('--color-text-primary')
         },
         destructive: {
-          DEFAULT: 'hsl(var(--destructive))',
-          foreground: 'hsl(var(--destructive-foreground))'
+          DEFAULT: tok('--color-error'),
+          foreground: tok('--color-on-error')
         },
         muted: {
-          DEFAULT: 'hsl(var(--muted))',
-          foreground: 'hsl(var(--muted-foreground))'
+          DEFAULT: tok('--color-background-muted'),
+          foreground: tok('--color-text-secondary')
         },
+        /*
+         * `accent` is the hover/selected tint in this app (hover:bg-accent on
+         * buttons, bg-accent on the active sidebar row), not a brand color.
+         * Gothic's overlay-pressed token is exactly that, and stays distinct
+         * from `muted` panel surfaces.
+         */
         accent: {
-          DEFAULT: 'hsl(var(--accent))',
-          foreground: 'hsl(var(--accent-foreground))'
+          DEFAULT: tok('--color-overlay-pressed'),
+          foreground: tok('--color-text-primary')
         },
         popover: {
-          DEFAULT: 'hsl(var(--popover))',
-          foreground: 'hsl(var(--popover-foreground))'
+          DEFAULT: tok('--color-background-popover'),
+          foreground: tok('--color-text-primary')
         },
         card: {
-          DEFAULT: 'hsl(var(--card))',
-          foreground: 'hsl(var(--card-foreground))'
-        }
+          DEFAULT: tok('--color-background-card'),
+          foreground: tok('--color-text-primary')
+        },
+        /*
+         * Status colors. These exist so status UI (Connected / Valid / Indexed,
+         * errors, the synthesizer highlight) uses Gothic's muted palette instead
+         * of raw Tailwind hues — `green-400` next to Gothic's desaturated
+         * surfaces was the single biggest source of visual inconsistency.
+         * All four are light-on-dark, so tinted surfaces and borders come from
+         * the /opacity modifiers (bg-success/10, border-success/30).
+         */
+        success: tok('--color-success'),
+        warning: tok('--color-warning'),
+        danger: tok('--color-error'),
+        /*
+         * Provider identity hues (see lib/providers.ts). These need to stay
+         * distinguishable from each other rather than carry status meaning, so
+         * they map to Gothic's muted hue family.
+         */
+        info: tok('--color-background-blue'),
+        hue: {
+          orange: tok('--color-background-orange'),
+          purple: tok('--color-background-purple')
+        },
+        /* Code-block chrome, so the header seams into the highlighted body. */
+        syntax: tok('--color-syntax-background')
       },
       borderRadius: {
-        lg: 'var(--radius)',
-        md: 'calc(var(--radius) - 2px)',
-        sm: 'calc(var(--radius) - 4px)'
+        lg: 'var(--radius-container)',
+        md: 'var(--radius-element)',
+        sm: 'var(--radius-inner)'
+      },
+      fontFamily: {
+        sans: 'var(--font-family-body)',
+        mono: 'var(--font-family-code)'
       },
       keyframes: {
         'accordion-down': {

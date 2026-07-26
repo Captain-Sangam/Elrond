@@ -1,32 +1,36 @@
 import * as React from 'react'
-import { cva, type VariantProps } from 'class-variance-authority'
+import { Badge as AstryxBadge } from '@astryxdesign/core/Badge'
 import { cn } from '@renderer/lib/utils'
 
-const badgeVariants = cva(
-  'inline-flex items-center rounded-full border px-2.5 py-0.5 text-xs font-semibold transition-colors focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2',
-  {
-    variants: {
-      variant: {
-        default: 'border-transparent bg-primary text-primary-foreground hover:bg-primary/80',
-        secondary:
-          'border-transparent bg-secondary text-secondary-foreground hover:bg-secondary/80',
-        destructive:
-          'border-transparent bg-destructive text-destructive-foreground hover:bg-destructive/80',
-        outline: 'text-foreground'
-      }
-    },
-    defaultVariants: {
-      variant: 'default'
-    }
-  }
-)
+/**
+ * Astryx Badge behind the app's existing prop API. Astryx renders
+ * `[icon, label]` inside one span, and `label` accepts ReactNode, so the
+ * app's icon+text children pass straight through as `label` and keep their
+ * own inline margins.
+ *
+ * `title` isn't part of Astryx's BaseProps, but Badge spreads unknown props
+ * onto the span, so tooltips still work.
+ */
+const VARIANT_MAP = {
+  default: 'info',
+  secondary: 'neutral',
+  destructive: 'error',
+  outline: 'neutral'
+} as const
 
-export interface BadgeProps
-  extends React.HTMLAttributes<HTMLDivElement>,
-    VariantProps<typeof badgeVariants> {}
-
-function Badge({ className, variant, ...props }: BadgeProps): React.JSX.Element {
-  return <div className={cn(badgeVariants({ variant }), className)} {...props} />
+export interface BadgeProps extends React.HTMLAttributes<HTMLSpanElement> {
+  variant?: keyof typeof VARIANT_MAP
 }
 
-export { Badge, badgeVariants }
+function Badge({ className, variant = 'default', children, ...props }: BadgeProps): React.JSX.Element {
+  return (
+    <AstryxBadge
+      variant={VARIANT_MAP[variant]}
+      label={children}
+      className={cn(className)}
+      {...props}
+    />
+  )
+}
+
+export { Badge }

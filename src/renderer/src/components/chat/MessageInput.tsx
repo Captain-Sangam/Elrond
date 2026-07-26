@@ -432,8 +432,8 @@ export function MessageInput(): React.JSX.Element {
               className={cn(
                 'flex items-center gap-1.5 rounded-full border px-3 py-1',
                 selectedRepo.indexed
-                  ? 'border-green-500/30 bg-green-500/10 text-green-400'
-                  : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                  ? 'border-success/30 bg-success/10 text-success'
+                  : 'border-warning/30 bg-warning/10 text-warning'
               )}
             >
               <GitBranch className="h-3 w-3" />
@@ -446,7 +446,7 @@ export function MessageInput(): React.JSX.Element {
               const prog = indexProgress[selectedRepo.repo.id]
               if (isIndexing(prog)) {
                 return (
-                  <span className="flex items-center gap-1 text-[10px] text-muted-foreground">
+                  <span className="flex items-center gap-1 text-[11px] text-muted-foreground">
                     <Loader2 className="h-2.5 w-2.5 animate-spin" />
                     {INDEX_STAGE_LABELS[prog!.stage]}
                   </span>
@@ -454,14 +454,14 @@ export function MessageInput(): React.JSX.Element {
               }
               if (prog?.stage === 'error') {
                 return (
-                  <span className="text-[10px] text-destructive">
+                  <span className="text-[11px] text-destructive">
                     Indexing failed: {prog.message ?? 'unknown error'}
                   </span>
                 )
               }
               if (selectedRepo.indexed) {
                 return (
-                  <span className="text-[10px] text-muted-foreground">
+                  <span className="text-[11px] text-muted-foreground">
                     Indexed · {selectedRepo.indexed.file_count} files — agents get PRs, issues,
                     commits & code
                   </span>
@@ -469,13 +469,13 @@ export function MessageInput(): React.JSX.Element {
               }
               return (
                 <>
-                  <span className="text-[10px] text-amber-400">
+                  <span className="text-[11px] text-warning">
                     Not indexed — agents will only get PRs/issues/commits, not code
                   </span>
                   <Button
                     variant="outline"
                     size="sm"
-                    className="h-6 gap-1 px-2 text-[10px]"
+                    className="h-6 gap-1 px-2 text-[11px]"
                     onClick={handleIndexSelected}
                   >
                     <Download className="h-2.5 w-2.5" />
@@ -508,7 +508,7 @@ export function MessageInput(): React.JSX.Element {
                     )}
                     <div className="flex flex-col">
                       <span className="max-w-40 truncate text-xs">{a.fileName}</span>
-                      <span className="text-[10px] text-muted-foreground">{formatBytes(a.size)}</span>
+                      <span className="text-[11px] text-muted-foreground">{formatBytes(a.size)}</span>
                     </div>
                     <button
                       onClick={() => removeAttachment(a.localId)}
@@ -520,7 +520,7 @@ export function MessageInput(): React.JSX.Element {
                 ))}
               </div>
             )}
-            {attachError && <div className="text-[10px] text-destructive">{attachError}</div>}
+            {attachError && <div className="text-[11px] text-destructive">{attachError}</div>}
           </div>
         )}
 
@@ -547,11 +547,11 @@ export function MessageInput(): React.JSX.Element {
                     onMouseEnter={() => setCommandIndex(i)}
                   >
                     <span className="shrink-0 font-mono text-xs text-primary">/{command.name}</span>
-                    <span className="text-[10px] text-muted-foreground">{command.description}</span>
+                    <span className="text-[11px] text-muted-foreground">{command.description}</span>
                   </button>
                 )
               })}
-              <div className="border-t px-2.5 py-1 text-[9px] text-muted-foreground">
+              <div className="border-t px-2.5 py-1 text-[11px] text-muted-foreground">
                 ↑↓ to navigate · Tab or Enter to select · Esc to dismiss
               </div>
             </div>
@@ -600,10 +600,10 @@ export function MessageInput(): React.JSX.Element {
                             {repo.private && <Lock className="h-2.5 w-2.5 shrink-0 text-muted-foreground" />}
                           </div>
                           {repo.description && (
-                            <div className="truncate text-[10px] text-muted-foreground">{repo.description}</div>
+                            <div className="truncate text-[11px] text-muted-foreground">{repo.description}</div>
                           )}
                         </div>
-                        <div className="flex items-center gap-1.5 shrink-0 text-[10px] text-muted-foreground">
+                        <div className="flex items-center gap-1.5 shrink-0 text-[11px] text-muted-foreground">
                           {repo.language && <span>{repo.language}</span>}
                           {repo.stargazers_count > 0 && (
                             <span className="flex items-center gap-0.5">
@@ -612,12 +612,12 @@ export function MessageInput(): React.JSX.Element {
                             </span>
                           )}
                           {indexedRepos.some((ir) => ir.github_id === repo.id) ? (
-                            <Badge className="shrink-0 border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                            <Badge className="shrink-0 border-success/30 bg-success/10 text-[11px] text-success">
                               <Check className="mr-0.5 h-2.5 w-2.5" />
                               Indexed
                             </Badge>
                           ) : (
-                            <Badge variant="outline" className="shrink-0 text-[9px] text-muted-foreground">
+                            <Badge variant="outline" className="shrink-0 text-[11px] text-muted-foreground">
                               Not indexed
                             </Badge>
                           )}
@@ -733,7 +733,7 @@ export function MessageInput(): React.JSX.Element {
           </div>
         </div>
         <div className="mt-1 flex items-center justify-between">
-          <span className="text-[10px] text-muted-foreground">
+          <span className="text-[11px] text-muted-foreground">
             {submitKey === 'CmdEnter' ? '⌘+Enter to send' : 'Enter to send, Shift+Enter for new line'}
             {' · Type '}
             <span className="font-mono text-primary/70">/github</span>
@@ -742,11 +742,11 @@ export function MessageInput(): React.JSX.Element {
             {mcpAvailable && mcpArmed && <span className="text-primary"> · MCP tools on</span>}
           </span>
           {enabledAgents.length === 0 ? (
-            <span className="text-[10px] text-amber-400">
+            <span className="text-[11px] text-warning">
               0 agents enabled — configure agents to start deliberating
             </span>
           ) : (
-            <span className="text-[10px] text-muted-foreground">
+            <span className="text-[11px] text-muted-foreground">
               {enabledAgents.length} agent{enabledAgents.length === 1 ? '' : 's'} active
               {!enableDebate && ' · Debate off'}
             </span>

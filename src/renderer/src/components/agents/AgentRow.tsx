@@ -67,7 +67,7 @@ export function AgentRow({
           className={cn(
             'h-7 gap-1 text-xs',
             isSynthesizer
-              ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 hover:text-amber-400'
+              ? 'border-warning/40 bg-warning/15 text-warning hover:bg-warning/25 hover:text-warning'
               : 'text-muted-foreground'
           )}
           onClick={() => setSynthesizer(agent.id)}
@@ -95,7 +95,7 @@ export function AgentRow({
 
       <div className="grid grid-cols-2 gap-2">
         <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">Provider</label>
+          <label className="text-[11px] text-muted-foreground">Provider</label>
           <Select value={agent.provider} onValueChange={handleProviderChange}>
             <SelectTrigger className="h-8 text-xs">
               {/* SelectValue shows the raw value — render the label instead */}
@@ -112,7 +112,7 @@ export function AgentRow({
           </Select>
         </div>
         <div className="space-y-1">
-          <label className="text-[10px] text-muted-foreground">Model</label>
+          <label className="text-[11px] text-muted-foreground">Model</label>
           {models.length > 0 ? (
             <Select value={agent.model} onValueChange={(v) => updateAgent(agent.id, { model: v })}>
               <SelectTrigger className="h-8 text-xs">

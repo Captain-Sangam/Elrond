@@ -27,6 +27,10 @@ test: typecheck ## Typecheck + unit tests + build — the full local gate
 	$(MAKE) build
 
 export: build ## Package Elrond.app and install it to Applications (Spotlight-searchable)
+	@# Running the tests rebuilds better-sqlite3 for plain Node's ABI. Packaging
+	@# that binary produces an app that launches with no window (the startup
+	@# chain rejects before createWindow), so force the Electron build first.
+	npx electron-rebuild -f -w better-sqlite3
 	npx electron-builder --dir
 	@APP=$$(find dist -maxdepth 2 -name "Elrond.app" -print -quit); \
 	if [ -z "$$APP" ]; then echo "Elrond.app not found under dist/"; exit 1; fi; \

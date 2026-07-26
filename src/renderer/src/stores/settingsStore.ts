@@ -17,7 +17,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
   setupComplete: false,
   enableDebate: true,
   maxDebateRounds: 3,
-  globalShortcut: 'CommandOrControl+Shift+Space',
+  globalShortcut: 'Control+Shift+Space',
   submitKey: 'CmdEnter',
   systemPrompt: '',
   loaded: false,
@@ -29,7 +29,7 @@ export const useSettingsStore = create<SettingsState>((set) => ({
       setupComplete: settings.setupComplete === 'true',
       enableDebate: settings.enableDebate !== 'false',
       maxDebateRounds: parseInt(settings.maxDebateRounds || '3', 10) || 3,
-      globalShortcut: settings.globalShortcut || 'CommandOrControl+Shift+Space',
+      globalShortcut: settings.globalShortcut || 'Control+Shift+Space',
       submitKey: (settings.submitKey as 'Enter' | 'CmdEnter') || 'CmdEnter',
       systemPrompt: settings.systemPrompt || '',
       loaded: true

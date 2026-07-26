@@ -48,6 +48,14 @@ The `-f` on the restore matters: a plain `npm install` (or `install-app-deps`)
 can silently skip the rebuild because electron-rebuild's cache still thinks the
 module is already built for Electron.
 
+The reverse direction is nastier: packaging while the binding is still built for
+plain Node produces an app that **launches with no window**. `initDatabase()`
+throws, and because the `app.whenReady()` chain in `src/main/index.ts` has no
+`.catch()`, the rejection is swallowed and `createWindow()` never runs — you get
+live Electron processes and no UI. `make export` now forces the Electron rebuild
+before packaging so this can't happen; to see the real error in a packaged app,
+run it with `ELECTRON_ENABLE_LOGGING=1`.
+
 ## Packaging
 
 `make export` builds an unsigned `Elrond.app` with electron-builder (config in

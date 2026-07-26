@@ -45,7 +45,7 @@ function transportSummary(server: MCPServerInfo): string {
 function StatusBadge({ server }: { server: MCPServerInfo }): React.JSX.Element {
   if (!server.enabled) {
     return (
-      <Badge variant="outline" className="text-[9px] text-muted-foreground">
+      <Badge variant="outline" className="text-[11px] text-muted-foreground">
         Disabled
       </Badge>
     )
@@ -53,13 +53,13 @@ function StatusBadge({ server }: { server: MCPServerInfo }): React.JSX.Element {
   switch (server.status) {
     case 'connected':
       return (
-        <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+        <Badge className="border-success/30 bg-success/10 text-[11px] text-success">
           Connected
         </Badge>
       )
     case 'connecting':
       return (
-        <Badge variant="outline" className="gap-1 text-[9px] text-muted-foreground">
+        <Badge variant="outline" className="gap-1 text-[11px] text-muted-foreground">
           <Loader2 className="h-2.5 w-2.5 animate-spin" />
           Connecting
         </Badge>
@@ -67,7 +67,7 @@ function StatusBadge({ server }: { server: MCPServerInfo }): React.JSX.Element {
     case 'error':
       return (
         <Badge
-          className="border-red-500/30 bg-red-500/10 text-[9px] text-red-400"
+          className="border-danger/30 bg-danger/10 text-[11px] text-danger"
           title={server.lastError}
         >
           Error
@@ -75,7 +75,7 @@ function StatusBadge({ server }: { server: MCPServerInfo }): React.JSX.Element {
       )
     default:
       return (
-        <Badge variant="outline" className="text-[9px] text-muted-foreground">
+        <Badge variant="outline" className="text-[11px] text-muted-foreground">
           Off
         </Badge>
       )
@@ -220,7 +220,7 @@ export function MCPManager({ active }: MCPManagerProps): React.JSX.Element {
                           <button onClick={() => handleToggleTools(server)}>
                             <Badge
                               variant="outline"
-                              className="cursor-pointer gap-1 text-[9px] hover:bg-accent"
+                              className="cursor-pointer gap-1 text-[11px] hover:bg-accent"
                             >
                               <Wrench className="h-2.5 w-2.5" />
                               {server.toolCount} tools
@@ -228,11 +228,11 @@ export function MCPManager({ active }: MCPManagerProps): React.JSX.Element {
                           </button>
                         )}
                       </div>
-                      <div className="truncate font-mono text-[10px] text-muted-foreground">
+                      <div className="truncate font-mono text-[11px] text-muted-foreground">
                         {transportSummary(server)}
                       </div>
                       {server.status === 'error' && server.lastError && (
-                        <div className="text-[10px] text-destructive">{server.lastError}</div>
+                        <div className="text-[11px] text-destructive">{server.lastError}</div>
                       )}
                     </div>
 
@@ -240,7 +240,7 @@ export function MCPManager({ active }: MCPManagerProps): React.JSX.Element {
                       <Button
                         variant={server.enabled ? 'default' : 'outline'}
                         size="sm"
-                        className="h-6 text-[10px]"
+                        className="h-6 text-[11px]"
                         onClick={() => setEnabled(server.id, !server.enabled)}
                       >
                         {server.enabled ? 'On' : 'Off'}
@@ -278,14 +278,14 @@ export function MCPManager({ active }: MCPManagerProps): React.JSX.Element {
                         <Badge
                           key={tool.name}
                           variant="outline"
-                          className="text-[9px]"
+                          className="text-[11px]"
                           title={tool.description}
                         >
                           {tool.name}
                         </Badge>
                       ))}
                       {expandedTools.length === 0 && (
-                        <span className="text-[10px] text-muted-foreground">No tools reported</span>
+                        <span className="text-[11px] text-muted-foreground">No tools reported</span>
                       )}
                     </div>
                   )}
@@ -313,14 +313,14 @@ export function MCPManager({ active }: MCPManagerProps): React.JSX.Element {
                         <Icon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
                         <span className="text-xs font-medium">{preset.label}</span>
                       </div>
-                      <p className="pt-0.5 text-[10px] text-muted-foreground">
+                      <p className="pt-0.5 text-[11px] text-muted-foreground">
                         {preset.description}
                       </p>
                     </div>
                     <Button
                       variant="outline"
                       size="sm"
-                      className="h-6 shrink-0 gap-1 text-[10px]"
+                      className="h-6 shrink-0 gap-1 text-[11px]"
                       onClick={() => handlePresetAddClick(preset)}
                       disabled={adding}
                     >
@@ -329,11 +329,11 @@ export function MCPManager({ active }: MCPManagerProps): React.JSX.Element {
                     </Button>
                   </div>
                   {preset.oauthNote && (
-                    <p className="text-[10px] text-muted-foreground/70">{preset.oauthNote}</p>
+                    <p className="text-[11px] text-muted-foreground/70">{preset.oauthNote}</p>
                   )}
                   {secretOpen && preset.secretFields[0] && (
                     <div className="space-y-1">
-                      <label className="text-[10px] text-muted-foreground">
+                      <label className="text-[11px] text-muted-foreground">
                         {preset.secretFields[0].label}
                       </label>
                       <div className="flex gap-1.5">
@@ -347,7 +347,7 @@ export function MCPManager({ active }: MCPManagerProps): React.JSX.Element {
                         <Button
                           variant="outline"
                           size="sm"
-                          className="h-7 gap-1 text-[10px]"
+                          className="h-7 gap-1 text-[11px]"
                           onClick={() => handlePresetSecretSubmit(preset, secretValue)}
                           disabled={!secretValue.trim() || adding}
                         >
@@ -358,7 +358,7 @@ export function MCPManager({ active }: MCPManagerProps): React.JSX.Element {
                       {preset.id === 'github' && hasGithubToken && (
                         <button
                           onClick={() => handleUseSavedGithubToken(preset)}
-                          className="text-[10px] text-primary underline decoration-primary/30 underline-offset-2"
+                          className="text-[11px] text-primary underline decoration-primary/30 underline-offset-2"
                         >
                           Use the token saved in the GitHub tab
                         </button>

@@ -19,12 +19,12 @@ export function ToolCallChips({ chips }: { chips: ToolCallChip[] }): React.JSX.E
           <span
             key={chip.callId}
             title={tooltip}
-            className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/40 px-1.5 py-0.5 font-mono text-[9px] text-muted-foreground"
+            className="inline-flex max-w-full items-center gap-1 rounded-full border bg-muted/40 px-1.5 py-0.5 font-mono text-[11px] text-muted-foreground"
           >
             <Wrench className="h-2.5 w-2.5 shrink-0" />
             <span className="truncate">{chip.toolName}</span>
             {chip.status === 'running' && <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin" />}
-            {chip.status === 'ok' && <Check className="h-2.5 w-2.5 shrink-0 text-green-400" />}
+            {chip.status === 'ok' && <Check className="h-2.5 w-2.5 shrink-0 text-success" />}
             {chip.status === 'error' && (
               <AlertCircle className="h-2.5 w-2.5 shrink-0 text-destructive" />
             )}
