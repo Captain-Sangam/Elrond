@@ -53,7 +53,7 @@ function StatusBadge({ server }: { server: MCPServerInfo }): React.JSX.Element {
   switch (server.status) {
     case 'connected':
       return (
-        <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+        <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
           Connected
         </Badge>
       )
@@ -67,7 +67,7 @@ function StatusBadge({ server }: { server: MCPServerInfo }): React.JSX.Element {
     case 'error':
       return (
         <Badge
-          className="border-red-500/30 bg-red-500/10 text-[9px] text-red-400"
+          className="border-danger/30 bg-danger/10 text-[9px] text-danger"
           title={server.lastError}
         >
           Error

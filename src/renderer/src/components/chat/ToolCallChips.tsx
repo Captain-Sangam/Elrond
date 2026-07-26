@@ -24,7 +24,7 @@ export function ToolCallChips({ chips }: { chips: ToolCallChip[] }): React.JSX.E
             <Wrench className="h-2.5 w-2.5 shrink-0" />
             <span className="truncate">{chip.toolName}</span>
             {chip.status === 'running' && <Loader2 className="h-2.5 w-2.5 shrink-0 animate-spin" />}
-            {chip.status === 'ok' && <Check className="h-2.5 w-2.5 shrink-0 text-green-400" />}
+            {chip.status === 'ok' && <Check className="h-2.5 w-2.5 shrink-0 text-success" />}
             {chip.status === 'error' && (
               <AlertCircle className="h-2.5 w-2.5 shrink-0 text-destructive" />
             )}

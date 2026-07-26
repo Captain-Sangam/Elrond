@@ -67,7 +67,7 @@ export function AgentRow({
           className={cn(
             'h-7 gap-1 text-xs',
             isSynthesizer
-              ? 'border-amber-500/40 bg-amber-500/15 text-amber-400 hover:bg-amber-500/25 hover:text-amber-400'
+              ? 'border-warning/40 bg-warning/15 text-warning hover:bg-warning/25 hover:text-warning'
               : 'text-muted-foreground'
           )}
           onClick={() => setSynthesizer(agent.id)}

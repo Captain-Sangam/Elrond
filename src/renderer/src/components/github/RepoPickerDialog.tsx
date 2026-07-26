@@ -109,7 +109,7 @@ export function RepoPickerDialog({ open, onOpenChange }: RepoPickerDialogProps):
                   onClick={() => handleSelectRepo(repo)}
                 >
                   <div className="flex items-center gap-2">
-                    <GitBranch className="h-4 w-4 text-green-400" />
+                    <GitBranch className="h-4 w-4 text-success" />
                     <div>
                       <div className="text-sm font-medium">{repo.full_name}</div>
                       <div className="text-[10px] text-muted-foreground">

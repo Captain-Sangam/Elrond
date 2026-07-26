@@ -124,7 +124,7 @@ export function GitHubRepoManager({ hasToken, active }: GitHubRepoManagerProps):
                       <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                     ) : indexed ? (
                       <>
-                        <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                        <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
                           <Check className="mr-0.5 h-2.5 w-2.5" />
                           Indexed
                         </Badge>

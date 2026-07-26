@@ -432,8 +432,8 @@ export function MessageInput(): React.JSX.Element {
               className={cn(
                 'flex items-center gap-1.5 rounded-full border px-3 py-1',
                 selectedRepo.indexed
-                  ? 'border-green-500/30 bg-green-500/10 text-green-400'
-                  : 'border-amber-500/30 bg-amber-500/10 text-amber-400'
+                  ? 'border-success/30 bg-success/10 text-success'
+                  : 'border-warning/30 bg-warning/10 text-warning'
               )}
             >
               <GitBranch className="h-3 w-3" />
@@ -469,7 +469,7 @@ export function MessageInput(): React.JSX.Element {
               }
               return (
                 <>
-                  <span className="text-[10px] text-amber-400">
+                  <span className="text-[10px] text-warning">
                     Not indexed — agents will only get PRs/issues/commits, not code
                   </span>
                   <Button
@@ -612,7 +612,7 @@ export function MessageInput(): React.JSX.Element {
                             </span>
                           )}
                           {indexedRepos.some((ir) => ir.github_id === repo.id) ? (
-                            <Badge className="shrink-0 border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                            <Badge className="shrink-0 border-success/30 bg-success/10 text-[9px] text-success">
                               <Check className="mr-0.5 h-2.5 w-2.5" />
                               Indexed
                             </Badge>
@@ -742,7 +742,7 @@ export function MessageInput(): React.JSX.Element {
             {mcpAvailable && mcpArmed && <span className="text-primary"> · MCP tools on</span>}
           </span>
           {enabledAgents.length === 0 ? (
-            <span className="text-[10px] text-amber-400">
+            <span className="text-[10px] text-warning">
               0 agents enabled — configure agents to start deliberating
             </span>
           ) : (

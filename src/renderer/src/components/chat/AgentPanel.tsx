@@ -53,7 +53,7 @@ export function AgentPanel({
           {content && (
             <Button variant="ghost" size="icon" className="h-6 w-6" onClick={handleCopy}>
               {copied ? (
-                <Check className="h-3 w-3 text-green-400" />
+                <Check className="h-3 w-3 text-success" />
               ) : (
                 <Copy className="h-3 w-3" />
               )}

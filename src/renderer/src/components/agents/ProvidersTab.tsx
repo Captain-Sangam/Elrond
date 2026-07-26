@@ -36,7 +36,7 @@ export function ProvidersTab({
             <span className={`h-2 w-2 shrink-0 rounded-full ${PROVIDER_DOT_COLORS[name]}`} />
             <span className="text-sm font-medium">{PROVIDER_LABELS[name]}</span>
             {keyPresence[name] ? (
-              <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+              <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
                 Configured
               </Badge>
             ) : (
@@ -61,7 +61,7 @@ export function ProvidersTab({
             {ollamaStatus === 'testing' ? (
               <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
             ) : ollamaStatus === 'connected' ? (
-              <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+              <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
                 Connected
               </Badge>
             ) : ollamaStatus === 'error' ? (

@@ -32,12 +32,12 @@ function InOutCost({ input, output, cost }: { input: number; output: number; cos
 function ConsensusLine({ rounds, converged }: { rounds: number; converged: boolean | null }): React.JSX.Element | null {
   if (converged === null) return null
   return converged ? (
-    <span className="flex items-center gap-1 text-green-400">
+    <span className="flex items-center gap-1 text-success">
       <CheckCircle2 className="h-3 w-3" />
       Consensus in {rounds} round{rounds > 1 ? 's' : ''}
     </span>
   ) : (
-    <span className="flex items-center gap-1 text-amber-400">
+    <span className="flex items-center gap-1 text-warning">
       <Scale className="h-3 w-3" />
       No consensus after {rounds} rounds
     </span>
@@ -110,7 +110,7 @@ function LiveTurnCard({
           {isDeliberating && <span className="ml-1.5 inline-block h-1.5 w-1.5 animate-pulse rounded-full bg-primary align-middle" />}
         </span>
         <span className="flex items-center gap-1 font-mono font-semibold tabular-nums">
-          <Flame className={`h-3.5 w-3.5 ${isDeliberating ? 'animate-pulse text-orange-400' : 'text-muted-foreground'}`} />
+          <Flame className={`h-3.5 w-3.5 ${isDeliberating ? 'animate-pulse text-warning' : 'text-muted-foreground'}`} />
           {formatTokens(totals.input + totals.output)}
         </span>
       </div>
@@ -211,7 +211,7 @@ export function StatsPanel(): React.JSX.Element {
 
         <div className="rounded-lg border bg-card/50 p-3 text-center">
           <div className="flex items-center justify-center gap-1.5">
-            <Flame className={`h-4 w-4 ${isDeliberating ? 'animate-pulse text-orange-400' : 'text-muted-foreground'}`} />
+            <Flame className={`h-4 w-4 ${isDeliberating ? 'animate-pulse text-warning' : 'text-muted-foreground'}`} />
             <span className="font-mono text-xl font-semibold tabular-nums">
               {formatTokens(totalTokens)}
             </span>

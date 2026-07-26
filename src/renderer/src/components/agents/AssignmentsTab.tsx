@@ -96,7 +96,7 @@ export function AssignmentsTab({
             </SelectContent>
           </Select>
           {configuredSynthesizer && !configuredSynthesizer.enabled && synthesizer && (
-            <p className="flex items-center gap-1 text-[10px] text-amber-400">
+            <p className="flex items-center gap-1 text-[10px] text-warning">
               <AlertTriangle className="h-2.5 w-2.5" />
               {configuredSynthesizer.name} is disabled — {synthesizer.name} will synthesize instead
             </p>

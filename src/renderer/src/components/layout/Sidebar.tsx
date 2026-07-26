@@ -121,7 +121,7 @@ export function Sidebar({ onSettingsClick, onRepoClick, onAgentsClick }: Sidebar
               onMouseLeave={() => setHoveredId(null)}
             >
               {session.repo_id ? (
-                <GitBranch className="h-3.5 w-3.5 shrink-0 text-green-400" />
+                <GitBranch className="h-3.5 w-3.5 shrink-0 text-success" />
               ) : (
                 <MessageSquare className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
               )}
@@ -141,7 +141,7 @@ export function Sidebar({ onSettingsClick, onRepoClick, onAgentsClick }: Sidebar
                       className={cn(
                         'h-3 w-3',
                         session.starred
-                          ? 'fill-yellow-500 text-yellow-500'
+                          ? 'fill-yellow-500 text-warning'
                           : 'text-muted-foreground'
                       )}
                     />
@@ -155,7 +155,7 @@ export function Sidebar({ onSettingsClick, onRepoClick, onAgentsClick }: Sidebar
                 </div>
               )}
               {hoveredId !== session.id && !!session.starred && (
-                <Star className="h-3 w-3 shrink-0 fill-yellow-500 text-yellow-500" />
+                <Star className="h-3 w-3 shrink-0 fill-yellow-500 text-warning" />
               )}
             </div>
           ))}

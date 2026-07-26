@@ -55,7 +55,30 @@ module.exports = {
         card: {
           DEFAULT: tok('--color-background-card'),
           foreground: tok('--color-text-primary')
-        }
+        },
+        /*
+         * Status colors. These exist so status UI (Connected / Valid / Indexed,
+         * errors, the synthesizer highlight) uses Gothic's muted palette instead
+         * of raw Tailwind hues — `green-400` next to Gothic's desaturated
+         * surfaces was the single biggest source of visual inconsistency.
+         * All four are light-on-dark, so tinted surfaces and borders come from
+         * the /opacity modifiers (bg-success/10, border-success/30).
+         */
+        success: tok('--color-success'),
+        warning: tok('--color-warning'),
+        danger: tok('--color-error'),
+        /*
+         * Provider identity hues (see lib/providers.ts). These need to stay
+         * distinguishable from each other rather than carry status meaning, so
+         * they map to Gothic's muted hue family.
+         */
+        info: tok('--color-background-blue'),
+        hue: {
+          orange: tok('--color-background-orange'),
+          purple: tok('--color-background-purple')
+        },
+        /* Code-block chrome, so the header seams into the highlighted body. */
+        syntax: tok('--color-syntax-background')
       },
       borderRadius: {
         lg: 'var(--radius-container)',

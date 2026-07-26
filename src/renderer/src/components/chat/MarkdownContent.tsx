@@ -2,9 +2,49 @@ import React, { useCallback } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import { Prism as SyntaxHighlighter } from 'react-syntax-highlighter'
-import { oneDark } from 'react-syntax-highlighter/dist/esm/styles/prism'
 import { cn } from '@renderer/lib/utils'
 import { Copy, Check } from 'lucide-react'
+
+/**
+ * Syntax highlighting driven by Gothic's own --color-syntax-* tokens instead of
+ * the bundled One Dark theme, whose saturated palette clashed with Gothic's
+ * muted surfaces. Prism token classes map onto Astryx's token categories.
+ */
+const t = (name: string): { color: string } => ({ color: `var(--color-syntax-${name})` })
+
+const gothicSyntax: Record<string, React.CSSProperties> = {
+  'code[class*="language-"]': { color: 'var(--color-syntax-variable)' },
+  'pre[class*="language-"]': {
+    color: 'var(--color-syntax-variable)',
+    background: 'var(--color-syntax-background)'
+  },
+  comment: { ...t('comment'), fontStyle: 'italic' },
+  prolog: t('comment'),
+  cdata: t('comment'),
+  doctype: t('punctuation'),
+  punctuation: t('punctuation'),
+  operator: t('operator'),
+  keyword: t('keyword'),
+  'attr-name': t('attribute'),
+  'attr-value': t('string'),
+  string: t('string'),
+  char: t('string'),
+  number: t('number'),
+  boolean: t('constant'),
+  constant: t('constant'),
+  symbol: t('constant'),
+  function: t('function'),
+  'class-name': t('type'),
+  builtin: t('type'),
+  tag: t('tag'),
+  selector: t('tag'),
+  property: t('property'),
+  variable: t('variable'),
+  regex: t('string'),
+  important: { ...t('keyword'), fontWeight: 'bold' },
+  deleted: t('tag'),
+  inserted: t('string')
+}
 
 function CopyButton({ text }: { text: string }): React.JSX.Element {
   const [copied, setCopied] = React.useState(false)
@@ -21,7 +61,7 @@ function CopyButton({ text }: { text: string }): React.JSX.Element {
       className="absolute right-2 top-2 rounded-md bg-background/80 p-1.5 opacity-0 transition-opacity group-hover:opacity-100 hover:bg-background"
     >
       {copied ? (
-        <Check className="h-3.5 w-3.5 text-green-400" />
+        <Check className="h-3.5 w-3.5 text-success" />
       ) : (
         <Copy className="h-3.5 w-3.5 text-muted-foreground" />
       )}
@@ -47,14 +87,16 @@ export function MarkdownContent({ content, className }: MarkdownContentProps): R
             if (match) {
               return (
                 <div className="group relative not-prose my-3 overflow-hidden rounded-lg">
-                  <div className="flex items-center justify-between rounded-t-lg border border-b-0 bg-[#282c34] px-4 py-1.5">
+                  {/* Header shares the syntax background so it seams cleanly
+                      into the highlighted block below. */}
+                  <div className="flex items-center justify-between rounded-t-lg border border-b-0 bg-syntax px-4 py-1.5">
                     <span className="text-[10px] font-medium uppercase tracking-wider text-muted-foreground">
                       {match[1]}
                     </span>
                   </div>
                   <CopyButton text={codeString} />
                   <SyntaxHighlighter
-                    style={oneDark}
+                    style={gothicSyntax}
                     language={match[1]}
                     PreTag="div"
                     customStyle={{
@@ -64,7 +106,8 @@ export function MarkdownContent({ content, className }: MarkdownContentProps): R
                       borderBottomLeftRadius: '0.5rem',
                       borderBottomRightRadius: '0.5rem',
                       fontSize: '0.8rem',
-                      border: '1px solid hsl(240 3.7% 15.9%)'
+                      border: '1px solid var(--color-border)',
+                      background: 'var(--color-syntax-background)'
                     }}
                   >
                     {codeString}

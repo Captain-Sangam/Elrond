@@ -210,7 +210,7 @@ export function SetupWizard(): React.JSX.Element {
                 <div className="flex items-center gap-2">
                   <label className="text-xs font-medium">{label}</label>
                   {keyStatus[name] === 'valid' && (
-                    <Badge variant="secondary" className="h-4 gap-0.5 text-[9px] text-green-400">
+                    <Badge variant="secondary" className="h-4 gap-0.5 text-[9px] text-success">
                       <Check className="h-2.5 w-2.5" />
                       Valid
                     </Badge>
@@ -256,7 +256,7 @@ export function SetupWizard(): React.JSX.Element {
                   <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
                 )}
                 {ollamaStatus === 'connected' && (
-                  <Badge variant="secondary" className="h-4 gap-0.5 text-[9px] text-green-400">
+                  <Badge variant="secondary" className="h-4 gap-0.5 text-[9px] text-success">
                     <Check className="h-2.5 w-2.5" />
                     {ollamaModels.length} model{ollamaModels.length === 1 ? '' : 's'} found
                   </Badge>

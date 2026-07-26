@@ -148,7 +148,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
 
   const statusIcon = (status: KeyTestStatus, fallback: React.ReactNode): React.ReactNode => {
     if (status === 'testing') return <Loader2 className="h-3 w-3 animate-spin" />
-    if (status === 'valid') return <Check className="h-3 w-3 text-green-400" />
+    if (status === 'valid') return <Check className="h-3 w-3 text-success" />
     if (status === 'invalid') return <AlertTriangle className="h-3 w-3 text-destructive" />
     return fallback
   }
@@ -303,7 +303,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 <Server className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">Ollama (local)</h3>
                 {ollamaStatus === 'connected' && (
-                  <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                  <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
                     Connected
                   </Badge>
                 )}
@@ -344,7 +344,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                     {ollamaStatus === 'testing' ? (
                       <Loader2 className="h-3 w-3 animate-spin" />
                     ) : ollamaStatus === 'connected' ? (
-                      <Check className="h-3 w-3 text-green-400" />
+                      <Check className="h-3 w-3 text-success" />
                     ) : ollamaStatus === 'error' ? (
                       <AlertTriangle className="h-3 w-3 text-destructive" />
                     ) : (
@@ -384,7 +384,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                   </div>
                 )}
                 {ollamaStatus === 'connected' && ollamaModels.length === 0 && (
-                  <p className="text-[10px] text-amber-400">
+                  <p className="text-[10px] text-warning">
                     Connected, but no models found — pull one with{' '}
                     <span className="font-mono">ollama pull llama3.2</span>
                   </p>
@@ -408,7 +408,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 <GitBranch className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">GitHub</h3>
                 {githubStatus === 'valid' && (
-                  <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                  <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
                     Connected
                   </Badge>
                 )}
@@ -480,7 +480,7 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                 <Globe className="h-4 w-4 text-muted-foreground" />
                 <h3 className="text-sm font-medium">Web Search</h3>
                 {tavilyStatus === 'valid' && (
-                  <Badge className="border-green-500/30 bg-green-500/10 text-[9px] text-green-400">
+                  <Badge className="border-success/30 bg-success/10 text-[9px] text-success">
                     Connected
                   </Badge>
                 )}
