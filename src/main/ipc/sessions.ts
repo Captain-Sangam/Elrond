@@ -3,7 +3,7 @@ import { getDb } from '../db'
 import { toFtsQuery } from '../db/fts'
 import { deleteAttachmentFiles, loadAttachmentsForMessages } from '../attachments'
 import { v4 as uuidv4 } from 'uuid'
-import type { Session, Message, TurnStats } from '../../shared/types'
+import type { Session, Message, TurnStats, TerminationReason } from '../../shared/types'
 
 export function registerSessionsHandlers(): void {
   ipcMain.handle('sessions:list', () => {
@@ -33,6 +33,7 @@ export function registerSessionsHandlers(): void {
       elapsed_ms: number
       rounds: number
       converged: number | null
+      termination_reason: TerminationReason | null
     }[]
     return rows.map((r) => ({
       turn: r.turn,
@@ -42,7 +43,8 @@ export function registerSessionsHandlers(): void {
       elapsedMs: r.elapsed_ms,
       rounds: r.rounds,
       // NULL means "debate off / no verdict" and must stay null, not become false
-      converged: r.converged === null ? null : r.converged === 1
+      converged: r.converged === null ? null : r.converged === 1,
+      terminationReason: r.termination_reason
     })) satisfies TurnStats[]
   })
 
@@ -52,8 +54,8 @@ export function registerSessionsHandlers(): void {
     const db = getDb()
     db.prepare(
       `INSERT OR REPLACE INTO turn_stats
-         (session_id, turn, input, output, cost, elapsed_ms, rounds, converged)
-       VALUES (?, ?, ?, ?, ?, ?, ?, ?)`
+         (session_id, turn, input, output, cost, elapsed_ms, rounds, converged, termination_reason)
+       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)`
     ).run(
       sessionId,
       stats.turn,
@@ -62,7 +64,8 @@ export function registerSessionsHandlers(): void {
       stats.cost,
       stats.elapsedMs,
       stats.rounds,
-      stats.converged === null ? null : stats.converged ? 1 : 0
+      stats.converged === null ? null : stats.converged ? 1 : 0,
+      stats.terminationReason ?? null
     )
   })
 
@@ -147,7 +150,7 @@ export function registerSessionsHandlers(): void {
     const db = getDb()
     const id = uuidv4()
     db.prepare(
-      'INSERT INTO messages (id, session_id, role, agent_name, agent_id, provider, content, token_count, round) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)'
+      'INSERT INTO messages (id, session_id, role, agent_name, agent_id, provider, content, token_count, round, tool_results, termination_reason) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)'
     ).run(
       id,
       message.session_id,
@@ -157,7 +160,9 @@ export function registerSessionsHandlers(): void {
       message.provider ?? null,
       message.content,
       message.token_count,
-      message.round ?? 0
+      message.round ?? 0,
+      message.tool_results ?? null,
+      message.termination_reason ?? null
     )
     return db.prepare('SELECT * FROM messages WHERE id = ?').get(id) as Message
   })

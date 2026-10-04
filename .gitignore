@@ -31,3 +31,7 @@ npm-debug.log*
 
 # Cloned repos (user data)
 repos/
+
+# Local benchmark measurements and credentials configuration
+bench/results/
+bench/config.local.json

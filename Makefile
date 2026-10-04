@@ -2,7 +2,7 @@
 # source of truth for how the app is built and run.
 
 .DEFAULT_GOAL := help
-.PHONY: help install dev build start typecheck test export clean
+.PHONY: help install dev build start typecheck test bench export clean
 
 help: ## Show available targets
 	@grep -E '^[a-zA-Z_-]+:.*?## ' $(MAKEFILE_LIST) | awk 'BEGIN {FS = ":.*?## "}; {printf "  make %-10s %s\n", $$1, $$2}'
@@ -26,8 +26,11 @@ test: typecheck ## Typecheck + unit tests + build — the full local gate
 	npm test
 	$(MAKE) build
 
+bench: ## Run the isolated benchmark smoke test (ARGS="--live --config ..." for real models)
+	npm run bench -- $(ARGS)
+
 export: build ## Package Elrond.app and install it to Applications (Spotlight-searchable)
-	@# Running the tests rebuilds better-sqlite3 for plain Node's ABI. Packaging
+	@# Manual native rebuilds can leave better-sqlite3 on plain Node's ABI. Packaging
 	@# that binary produces an app that launches with no window (the startup
 	@# chain rejects before createWindow), so force the Electron build first.
 	npx electron-rebuild -f -w better-sqlite3

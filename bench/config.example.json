@@ -1,0 +1,31 @@
+{
+  "agents": [
+    {
+      "id": "left",
+      "name": "Left",
+      "provider": "ollama",
+      "model": "REPLACE_WITH_INSTALLED_MODEL_TAG",
+      "enabled": true,
+      "baseURL": "http://localhost:11434",
+      "inputUsdPerMillion": 0,
+      "outputUsdPerMillion": 0
+    },
+    {
+      "id": "right",
+      "name": "Right",
+      "provider": "ollama",
+      "model": "REPLACE_WITH_SECOND_INSTALLED_MODEL_TAG",
+      "enabled": true,
+      "baseURL": "http://localhost:11434",
+      "inputUsdPerMillion": 0,
+      "outputUsdPerMillion": 0
+    }
+  ],
+  "synthesizerAgentId": "left",
+  "maxDebateRounds": 3,
+  "runsPerPrompt": 1,
+  "timeoutMs": 180000,
+  "nonInferiorityMargin": 0.25,
+  "maxFalseStopRate": 0.05,
+  "minHeldOutSamples": 100
+}

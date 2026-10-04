@@ -54,82 +54,31 @@ describe('splitDebateResponse', () => {
 })
 
 describe('parseModeratorVerdict', () => {
-  it('parses a clean JSON verdict', () => {
-    const result = parseModeratorVerdict(
-      '{"converged": false, "disagreements": ["scaling strategy"], "summary": "Agents still disagree on scaling."}'
-    )
-    expect(result).toEqual({
-      converged: false,
-      disagreements: ['scaling strategy'],
-      summary: 'Agents still disagree on scaling.'
-    })
-    expect(result.parseFailed).toBeUndefined()
-  })
-
-  it('parses a ```json fenced verdict', () => {
-    const raw = '```json\n{"converged": true, "disagreements": [], "summary": "All agree."}\n```'
-    expect(parseModeratorVerdict(raw)).toEqual({
-      converged: true,
-      disagreements: [],
-      summary: 'All agree.'
+  it('assigns stable IDs to a first disagreement inventory', () => {
+    expect(parseModeratorVerdict('{"converged":false,"disagreements":["scaling"],"summary":"Open."}')).toEqual({
+      converged: false, disagreements: ['I1: scaling'], issues: [{ id: 'I1', description: 'scaling' }], summary: 'Open.'
     })
   })
-
-  it('extracts JSON embedded in surrounding prose', () => {
-    const raw =
-      'Here is my verdict as requested:\n{"converged": false, "disagreements": ["pricing"], "summary": "Pricing is unresolved."}\nHope that helps!'
-    expect(parseModeratorVerdict(raw)).toEqual({
-      converged: false,
-      disagreements: ['pricing'],
-      summary: 'Pricing is unresolved.'
-    })
+  it('preserves IDs for reworded and reordered issues and never recycles a resolved ID', () => {
+    const history = [{ id: 'I1', description: 'pricing' }, { id: 'I2', description: 'scaling' }]
+    const result = parseModeratorVerdict('{"converged":false,"disagreements":[{"id":"I2","description":"Scaling under load"},{"description":"privacy"}],"summary":"Open."}', [history[1]], history)
+    expect(result.issues).toEqual([{ id: 'I2', description: 'Scaling under load' }, { id: 'I3', description: 'privacy' }])
   })
-
-  it('returns the fail-safe converged verdict for non-JSON content', () => {
-    expect(parseModeratorVerdict('I believe they have converged.')).toEqual({
-      converged: true,
-      disagreements: [],
-      summary: 'Moderator verdict unreadable — ending debate.',
-      parseFailed: true
-    })
+  it('accepts valid fenced JSON and surrounding prose', () => {
+    expect(parseModeratorVerdict('Here: ```json\n{"converged":true,"disagreements":[],"summary":"Resolved."}\n```').converged).toBe(true)
   })
-
-  it('returns the fail-safe verdict for malformed JSON between braces', () => {
-    expect(parseModeratorVerdict('{converged: yes, disagreements: none}')).toEqual({
-      converged: true,
-      disagreements: [],
-      summary: 'Moderator verdict unreadable — ending debate.',
-      parseFailed: true
-    })
-  })
-
-  it('coerces a non-array disagreements field to an empty array', () => {
-    const result = parseModeratorVerdict(
-      '{"converged": false, "disagreements": "pricing", "summary": "s"}'
-    )
-    expect(result.disagreements).toEqual([])
-  })
-
-  it('coerces disagreement elements to strings', () => {
-    const result = parseModeratorVerdict(
-      '{"converged": true, "disagreements": [1, null, true], "summary": "s"}'
-    )
-    expect(result.disagreements).toEqual(['1', 'null', 'true'])
-  })
-
-  it('coerces a non-string summary to an empty string', () => {
-    const result = parseModeratorVerdict('{"converged": true, "disagreements": [], "summary": 42}')
-    expect(result.summary).toBe('')
-  })
-
-  it('coerces converged with Boolean(): truthy strings become true, 0 and missing become false', () => {
-    expect(
-      parseModeratorVerdict('{"converged": "false", "disagreements": [], "summary": "s"}').converged
-    ).toBe(true)
-    expect(
-      parseModeratorVerdict('{"converged": 0, "disagreements": [], "summary": "s"}').converged
-    ).toBe(false)
-    expect(parseModeratorVerdict('{"disagreements": [], "summary": "s"}').converged).toBe(false)
+  it.each([
+    'not JSON', '{converged: yes}', '{"converged":"false","disagreements":[]}',
+    '{"disagreements":[]}', '{"converged":0,"disagreements":[]}',
+    '{"converged":false,"disagreements":"pricing"}',
+    '{"converged":true,"disagreements":["pricing"]}',
+    '{"converged":false,"disagreements":[]}',
+    '{"converged":false,"disagreements":[null]}',
+    '{"converged":false,"disagreements":[{"description":""}]}',
+    '{"converged":false,"disagreements":[{"id":"I1","description":"pricing"},{"id":"I1","description":"different"}]}'
+  ])('fails without claiming agreement, preserving open issues: %s', (raw) => {
+    const prior = [{ id: 'I1', description: 'pricing' }]
+    expect(parseModeratorVerdict(raw, prior)).toMatchObject({ converged: false, parseFailed: true, issues: prior, disagreements: ['I1: pricing'] })
   })
 })
 
@@ -244,5 +193,24 @@ describe('getSynthesisPrompt', () => {
     expect(prompt).toContain('The agents debated for 2 round(s).')
     expect(prompt).toContain('- Round 1: unresolved disagreements — caching; pricing')
     expect(prompt).toContain('- Round 2: no substantive disagreements remained')
+  })
+})
+
+describe('focused issue reports', () => {
+  it('includes the prior inventory and structured status instructions', () => {
+    const issues = [{ id: 'I7', description: 'Cache TTL' }]
+    expect(getDebateRoundPrompt('A', 2, 'answer', [], issues)).toContain('I7: Cache TTL')
+    expect(getDebateRoundPrompt('A', 2, 'answer', [], issues)).toContain('STATUS {')
+    expect(getModeratorPrompt('q', [], 2, issues)).toContain('Keep each existing issue')
+  })
+  it('recognizes whole-response and revised-section UNCHANGED without swallowing ordinary text', () => {
+    expect(splitDebateResponse(' UNCHANGED ')).toMatchObject({ unchanged: true })
+    expect(splitDebateResponse('STATUS {"disputed":["I1"],"newIssues":[]}\n## Critique\nStill disagree.\n## Revised Answer\nUNCHANGED')).toEqual({ critique: 'Still disagree.', revised: 'UNCHANGED', unchanged: true, status: { disputed: ['I1'], newIssues: [] } })
+    expect(splitDebateResponse('The answer is UNCHANGED in this scenario.').unchanged).toBeUndefined()
+  })
+  it('keeps failed moderation distinct from no remaining disagreements in synthesis', () => {
+    const prompt = getSynthesisPrompt('q', [{ name: 'A', initial: 'a', final: 'a' }], [{ round: 1, disagreements: [], terminationReason: 'degraded' }])
+    expect(prompt).toContain('agreement was not established')
+    expect(prompt).not.toContain('no substantive disagreements remained')
   })
 })

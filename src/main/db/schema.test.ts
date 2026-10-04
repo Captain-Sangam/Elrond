@@ -335,6 +335,19 @@ describe('legacy upgrade: pre-round messages table', () => {
 })
 
 describe('turn_stats', () => {
+  it('adds and preserves tool evidence and termination metadata on repeated migrations', () => {
+    const db = new Database(':memory:')
+    try {
+      runMigrations(db)
+      db.prepare("INSERT INTO sessions (id, title) VALUES ('metadata', 'Metadata')").run()
+      const evidence = '[{"content":"tool evidence","isError":false}]'
+      db.prepare("INSERT INTO messages (id, session_id, role, content, tool_results, termination_reason) VALUES ('meta', 'metadata', 'agent', 'Answer', ?, 'degraded')").run(evidence)
+      db.prepare("INSERT INTO turn_stats (session_id, turn, input, output, cost, elapsed_ms, rounds, converged, termination_reason) VALUES ('metadata', 1, 2, 3, 0, 1000, 1, 0, 'degraded')").run()
+      runMigrations(db)
+      expect(db.prepare("SELECT tool_results, termination_reason FROM messages WHERE id = 'meta'").get()).toEqual({ tool_results: evidence, termination_reason: 'degraded' })
+      expect(db.prepare("SELECT termination_reason FROM turn_stats WHERE session_id = 'metadata'").get()).toEqual({ termination_reason: 'degraded' })
+    } finally { db.close() }
+  })
   let db: Database.Database
 
   const saveTurn = (

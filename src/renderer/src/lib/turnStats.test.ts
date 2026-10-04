@@ -50,6 +50,24 @@ const baseParams = (overrides: Partial<Params> = {}): Params => ({
 })
 
 describe('deriveTurnStats', () => {
+  it('sums all call IDs and uses returned output estimates rather than the preserved answer length', () => {
+    const totals = deriveTurnStats(baseParams({
+      debateRounds: [round(2, { a: { ...stream('preserved answer'.repeat(100)), tokenCount: 3 } })],
+      callInputTokens: { 'debate:2:a:first': 100, 'debate:2:a:second': 250, 'debate:2:b:first': 40 }
+    }))
+    expect(totals.rows.find((r) => r.key === 'round-2')).toMatchObject({ input: 390, output: 3 })
+  })
+
+  it('does not bill a reused single-agent synthesis twice', () => {
+    const totals = deriveTurnStats(baseParams({
+      agentStreams: { a: { ...stream('Answer'), tokenCount: 2 } },
+      synthesisStream: { ...stream('Answer'), reused: true },
+      callInputTokens: { 'initial:0:a:first': 100 }
+    }))
+    expect(totals.rows.find((r) => r.key === 'synthesis')).toBeUndefined()
+    expect(totals.input).toBe(100)
+    expect(totals.output).toBe(2)
+  })
   it('builds the initial row from callInputTokens and stream content estimates', () => {
     const totals = deriveTurnStats(
       baseParams({

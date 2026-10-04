@@ -43,8 +43,14 @@ export function deriveTurnStats(params: {
     currentPhase
   } = params
 
+  const agentInput = (phase: string, round: number, id: string): number => {
+    const prefix = `${phase}:${round}:${id}`
+    return Object.entries(callInputTokens).reduce((sum, [key, count]) =>
+      sum + (key === prefix || key.startsWith(`${prefix}:`) ? count : 0), 0)
+  }
   const inputFor = (phase: string, round: number): number =>
-    enabledAgents.reduce((sum, a) => sum + (callInputTokens[`${phase}:${round}:${a.id}`] ?? 0), 0)
+    enabledAgents.reduce((sum, a) => sum + agentInput(phase, round, a.id), 0)
+  const outputFor = (stream?: AgentStream): number => stream?.reused ? 0 : stream?.tokenCount || estimateFromContent(stream?.content || '')
 
   // Per-agent in/out accumulators for cost estimation
   const perAgent: Record<string, { agent: AgentConfig; input: number; output: number }> = {}
@@ -57,7 +63,7 @@ export function deriveTurnStats(params: {
   const rows: PhaseRow[] = []
 
   const initialOut = enabledAgents.reduce(
-    (sum, a) => sum + estimateFromContent(agentStreams[a.id]?.content || ''),
+    (sum, a) => sum + outputFor(agentStreams[a.id]),
     0
   )
   rows.push({
@@ -68,16 +74,16 @@ export function deriveTurnStats(params: {
     active: isDeliberating && currentPhase === 'initial'
   })
   for (const a of enabledAgents) {
-    bump(a, callInputTokens[`initial:0:${a.id}`] ?? 0, estimateFromContent(agentStreams[a.id]?.content || ''))
+    bump(a, agentInput('initial', 0, a.id), outputFor(agentStreams[a.id]))
   }
 
   for (const round of debateRounds) {
     let roundIn = inputFor('debate', round.round)
     let roundOut = 0
     for (const a of enabledAgents) {
-      const out = estimateFromContent(round.streams[a.id]?.content || '')
+      const out = outputFor(round.streams[a.id])
       roundOut += out
-      bump(a, callInputTokens[`debate:${round.round}:${a.id}`] ?? 0, out)
+      bump(a, agentInput('debate', round.round, a.id), out)
     }
     if (round.moderatorTokens && synthesizerAgent) {
       roundIn += round.moderatorTokens.input
@@ -97,7 +103,7 @@ export function deriveTurnStats(params: {
   }
 
   const synthIn = inputFor('synthesis', 0)
-  const synthOut = estimateFromContent(synthesisStream.content)
+  const synthOut = outputFor(synthesisStream)
   if (synthIn > 0 || synthOut > 0 || currentPhase === 'synthesis') {
     rows.push({
       key: 'synthesis',

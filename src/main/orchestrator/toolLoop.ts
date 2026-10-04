@@ -1,4 +1,5 @@
-import type { MCPToolInfo } from '../../shared/types'
+import type { MCPToolInfo, ToolResult } from '../../shared/types'
+import { estimateMessagesTokens, estimateTokens } from './utils'
 import {
   ToolsUnsupportedError,
   type AgentProvider,
@@ -103,9 +104,15 @@ export interface ToolLoopParams {
   onText: (delta: string) => void
   onTool?: (event: ToolLifecycleEvent) => void
   onNotice?: (message: string) => void
-  // Fired before each re-stream with the grown message list, so token
-  // estimates stay cumulative across iterations
-  onIterationStart?: (messages: ChatMessage[]) => void
+  onIterationStart?: (messages: ChatMessage[], sequence: number, inputTokens: number) => void
+  onIterationEnd?: (usage: { inputTokens: number; outputTokens: number; durationMs: number; error?: string }) => void
+}
+
+export interface ToolLoopResult {
+  content: string
+  toolResults: ToolResult[]
+  inputTokens: number
+  outputTokens: number
 }
 
 // Models that rejected the tools parameter — skip tools for them without a
@@ -133,25 +140,40 @@ function truncate(text: string, max: number): string {
 // Provider-agnostic agentic loop: stream → collect tool calls → execute via
 // MCP → append tool-call/result messages → re-stream, until the model stops
 // calling tools. With no tools configured this is a single plain stream.
-export async function runToolLoop(p: ToolLoopParams): Promise<{ content: string }> {
+export async function runToolLoop(p: ToolLoopParams): Promise<ToolLoopResult> {
   const msgs = [...p.messages]
   const modelKey = `${p.provider.name}:${p.model}`
   let toolsActive = !!p.tools?.length && !!p.toolIndex && !!p.mcp && !toolUnsupportedModels.has(modelKey)
   let fullText = ''
   let iteration = 0
+  let sequence = 0
+  let inputTokens = 0
+  let outputTokens = 0
+  const toolResults: ToolResult[] = []
+  const finish = (): ToolLoopResult => ({ content: fullText, toolResults, inputTokens, outputTokens })
 
   while (iteration <= MAX_TOOL_ITERATIONS) {
+    if (p.signal.aborted) return finish()
     const useTools = toolsActive && iteration < MAX_TOOL_ITERATIONS
     let iterationText = ''
     const calls: ToolCall[] = []
+    const callInput = estimateMessagesTokens(msgs, useTools ? p.tools : undefined)
+    inputTokens += callInput
+    p.onIterationStart?.(msgs, ++sequence, callInput)
+    const started = Date.now()
+    let callError: string | undefined
+    const callController = new AbortController()
+    const abortCall = (): void => callController.abort(p.signal.reason)
+    p.signal.addEventListener('abort', abortCall, { once: true })
+    if (p.signal.aborted) abortCall()
 
     try {
       const stream = p.provider.streamChat(msgs, p.model, p.credential, {
-        signal: p.signal,
+        signal: callController.signal,
         tools: useTools ? p.tools : undefined
       })
       for await (const chunk of stream) {
-        if (p.signal.aborted) return { content: fullText }
+        if (p.signal.aborted) break
         if (chunk.type === 'text') {
           iterationText += chunk.delta
           fullText += chunk.delta
@@ -161,19 +183,25 @@ export async function runToolLoop(p: ToolLoopParams): Promise<{ content: string 
         }
       }
     } catch (err) {
-      if (p.signal.aborted) return { content: fullText }
-      if (err instanceof ToolsUnsupportedError && toolsActive) {
+      callError = err instanceof Error ? err.message : String(err)
+      if (!p.signal.aborted && err instanceof ToolsUnsupportedError && toolsActive) {
         if (err.cacheable) toolUnsupportedModels.add(modelKey)
         toolsActive = false
         p.onNotice?.(`${err.message} — answering without MCP tools.`)
         continue // retry the same iteration without tools
       }
-      throw err
+      if (!p.signal.aborted) throw err
+    } finally {
+      p.signal.removeEventListener('abort', abortCall)
+      callController.abort()
+      const callOutput = estimateTokens(iterationText) + (calls.length ? estimateTokens(JSON.stringify(calls)) : 0)
+      outputTokens += callOutput
+      p.onIterationEnd?.({ inputTokens: callInput, outputTokens: callOutput, durationMs: Date.now() - started, error: callError })
     }
     iteration++
 
     if (calls.length === 0 || p.signal.aborted) {
-      return { content: fullText }
+      return finish()
     }
 
     msgs.push({ role: 'assistant', content: iterationText, toolCalls: calls })
@@ -186,9 +214,11 @@ export async function runToolLoop(p: ToolLoopParams): Promise<{ content: string 
       const serverName = entry?.serverName ?? 'unknown'
 
       const pushResult = (text: string, isError: boolean): void => {
+        const content = truncate(text, TOOL_RESULT_MAX_CHARS)
+        toolResults.push({ callId: call.id, toolName: call.name, serverName, argsJson: call.argsJson, content, isError })
         msgs.push({
           role: 'tool',
-          content: truncate(text, TOOL_RESULT_MAX_CHARS),
+          content,
           toolCallId: call.id,
           toolName: call.name,
           isError
@@ -257,7 +287,7 @@ export async function runToolLoop(p: ToolLoopParams): Promise<{ content: string 
       }
     }
 
-    if (p.signal.aborted) return { content: fullText }
+    if (p.signal.aborted) return finish()
 
     // Visual break between pre-tool and post-tool text in the streamed message
     if (iterationText) {
@@ -265,8 +295,7 @@ export async function runToolLoop(p: ToolLoopParams): Promise<{ content: string 
       p.onText('\n\n')
     }
 
-    p.onIterationStart?.(msgs)
   }
 
-  return { content: fullText }
+  return finish()
 }

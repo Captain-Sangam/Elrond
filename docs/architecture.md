@@ -18,7 +18,7 @@ Each agent is a named slot assigned a provider + model in the Agents dialog. Pro
 
 1. **Fan-Out** — Your prompt (with any attached images/PDFs, repo context, and web search results) is sent to all enabled agents in parallel
 2. **Initial Responses** — Each agent's answer streams into its own panel
-3. **Adaptive Debate** — Each round, agents critique each other **and revise their answers**. A moderator agent then judges whether they've converged: if they still substantively disagree, another round runs (up to a configurable max, default 3); if they agree, the debate ends early
+3. **Adaptive Debate** — Agents critique and revise their answers around stable unresolved issue IDs. A moderator refreshes the issue inventory after each productive round. `UNCHANGED` preserves the prior position verbatim; when every position stays unchanged while known issues remain, the debate stops as stagnated. Agreement, stagnation, the round cap and incomplete reviews have distinct outcomes; failed moderation never counts as agreement.
 4. **Synthesis** — A designated agent consolidates the final positions and the moderator's findings into a final answer. Synthesis always runs, even with debate disabled
 
 ## Module Layout
@@ -38,6 +38,8 @@ src/
       shellEnv.ts           Login-shell PATH resolution (npx in packaged builds)
     ipc/                    IPC handlers bridging renderer ↔ main
     orchestrator/           Deliberation pipeline + provider adapters
+      index.ts              Electron/Keychain/context services wired into the runner
+      runner.ts             Injectable pipeline (database, event sink, providers, context)
       providers/            OpenAI, Anthropic, Google, Ollama streaming adapters (multimodal, tool-calling)
       prompts.ts            Debate round, moderator + synthesis prompt templates
       toolLoop.ts           Provider-agnostic agentic loop (stream → call MCP tools → re-stream)
@@ -141,6 +143,17 @@ All data stays local:
 - **API Keys**: macOS Keychain under `com.elrond.app`
 - **Cloned Repos**: `~/Library/Application Support/Elrond/repos/`
 - **Attachments**: `~/Library/Application Support/Elrond/attachments/`
+
+Messages persist bounded model-facing tool results (including arguments and
+errors). Moderator rows retain stable issue IDs and debate termination reasons;
+user rows and turn stats retain the final turn outcome. Non-debate, single-agent
+and cancelled turns also have explicit outcomes. Each tool-loop provider request
+has its own input estimate; the stats rail sums requests and labels all token and
+cost figures as estimates. Reused single-agent syntheses do not add token cost.
+
+The [benchmark harness](../bench/README.md) supplies its own in-memory database,
+providers and event sink without loading app services. It compares the original
+prompt/stopping behavior with the improved pipeline before any Jev integration.
 
 ## Context Tools
 

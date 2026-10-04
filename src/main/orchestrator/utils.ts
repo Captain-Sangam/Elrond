@@ -1,6 +1,6 @@
 // Pure helpers for the orchestrator — no electron/db/keychain imports so they
 // stay unit-testable in isolation.
-import type { ChatMessage, ContentPart } from './providers/types'
+import type { ChatMessage, ContentPart, ToolDefinition } from './providers/types'
 
 export function cleanErrorMessage(err: unknown): string {
   if (!(err instanceof Error)) return 'Unknown error'
@@ -43,7 +43,7 @@ export function estimateTokens(text: string): number {
 // Rough flat estimate per image/PDF part — base64 length wildly overestimates
 export const ATTACHMENT_TOKEN_ESTIMATE = 1500
 
-export function estimateMessagesTokens(messages: ChatMessage[]): number {
+export function estimateMessagesTokens(messages: ChatMessage[], tools?: ToolDefinition[]): number {
   let total = 0
   for (const m of messages) {
     if (typeof m.content === 'string') {
@@ -53,7 +53,9 @@ export function estimateMessagesTokens(messages: ChatMessage[]): number {
         total += part.type === 'text' ? estimateTokens(part.text) : ATTACHMENT_TOKEN_ESTIMATE
       }
     }
+    if (m.toolCalls?.length) total += estimateTokens(JSON.stringify(m.toolCalls))
   }
+  if (tools?.length) total += estimateTokens(JSON.stringify(tools))
   return total
 }
 

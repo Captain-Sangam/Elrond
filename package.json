@@ -29,8 +29,9 @@
     "dev": "electron-vite dev",
     "build": "electron-vite build",
     "preview": "electron-vite preview",
-    "test": "vitest run",
-    "test:watch": "vitest",
+    "test": "node scripts/run-tests.mjs run",
+    "test:watch": "node scripts/run-tests.mjs",
+    "bench": "node scripts/bench/run.mjs",
     "typecheck": "tsc --noEmit -p tsconfig.node.json && tsc --noEmit -p tsconfig.web.json",
     "postinstall": "electron-builder install-app-deps"
   },

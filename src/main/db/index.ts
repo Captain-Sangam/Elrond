@@ -1,16 +1,14 @@
 import Database from 'better-sqlite3'
 import { app } from 'electron'
-import { join } from 'path'
+import { dirname, join } from 'path'
 import { mkdirSync } from 'fs'
 import { runMigrations } from './schema'
 
 let db: Database.Database | null = null
 
-export function initDatabase(): Database.Database {
-  const userDataPath = app.getPath('userData')
-  mkdirSync(userDataPath, { recursive: true })
-
-  const dbPath = join(userDataPath, 'elrond.db')
+export function initDatabase(path?: string): Database.Database {
+  const dbPath = path ?? join(app.getPath('userData'), 'elrond.db')
+  if (dbPath !== ':memory:') mkdirSync(dirname(dbPath), { recursive: true })
 
   db = new Database(dbPath)
   db.pragma('journal_mode = WAL')

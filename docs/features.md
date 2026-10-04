@@ -4,7 +4,8 @@
 
 - Multi-agent fan-out with parallel streaming — as many agents as you configure
 - Adaptive multi-round debate — agents critique **and revise** their answers each round
-- Moderator agent judges convergence after every round and stops the debate early once agents agree
+- Debate rounds focus on stable unresolved issue IDs; agents report disputed and new issues and may preserve their answer with `UNCHANGED`
+- Moderator reviews productive rounds; outcome badges distinguish agreement, unchanged positions, the round limit and incomplete reviews
 - Configurable max debate rounds (1–5, default 3) and synthesizer choice (any agent)
 - Debate toggle — skip straight to synthesis for faster, cheaper queries
 - Conversation context — follow-up questions carry full history (including attachments)
@@ -96,4 +97,11 @@
 
 ## Cost Awareness
 
-Each debate round costs one call per agent plus a short moderator check, so a query that runs the full 3 rounds costs roughly 3-4x a single-round debate. The moderator usually stops well before the cap — simple questions converge in one round. Use the max-rounds setting or the debate toggle to bound cost; with debate off, a query is just the fan-out plus one synthesis call. Token counts are displayed on each panel and in the live stats rail (all figures are chars÷4 estimates).
+Each productive debate round costs one call per agent plus a moderator check;
+tool use can add calls. A round with every position unchanged and known issues
+still open stops as stagnated without another moderator call. Use the max-rounds
+setting or debate toggle to bound calls; with debate off, a query uses fan-out
+plus synthesis, and a single-agent answer is reused without a second call.
+The stats rail sums input estimates for every tool-loop request and uses the
+returned output estimate even when an earlier answer is preserved. All token
+and cost figures remain estimates, based on chars ÷ 4 rather than provider usage.
