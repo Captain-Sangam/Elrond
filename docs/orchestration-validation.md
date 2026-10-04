@@ -1,6 +1,6 @@
 # Orchestration implementation validation
 
-Implemented scope: Phase A and Phase B of `implementation_plan.md`.
+Implemented scope: Phase A and Phase B of [the implementation plan](implementation-plan.md).
 Jev client, routing, convergence judging, settings (C–F), and follow-up G are
 deferred. The original plan is unchanged; no dependencies were added.
 
@@ -61,4 +61,4 @@ Quality non-inferiority and held-out false-stop conclusions remain **pending**
 blinded human labels and a larger frozen held-out set. The 20-prompt smoke test
 cannot establish calibration or justify Jev thresholds. Local model USD rates
 are zero; power/hardware costs are excluded. Token counts are estimates rather
-than provider usage. See [the benchmark instructions](../bench/README.md).
+than provider usage. See [the benchmark instructions](benchmarks.md).

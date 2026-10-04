@@ -2,10 +2,12 @@
 
 Thanks for your interest in contributing. Elrond is an open-source multi-agent deliberation system and we welcome contributions of all kinds — new AI providers, GitHub tools, UI improvements, bug fixes, and documentation.
 
+For the short setup and pull request checklist, see the [root contribution guidelines](../CONTRIBUTING.md).
+
 ## Getting Started
 
 ```bash
-git clone https://github.com/Captain-Sangam/elrond.git
+git clone https://github.com/Captain-Sangam/Elrond.git elrond
 cd elrond
 npm install
 npm run dev

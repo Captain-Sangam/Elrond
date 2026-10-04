@@ -5,9 +5,11 @@ Multi-agent AI deliberation app for macOS — Electron + React + TypeScript, SQL
 ## Documentation
 
 - [README.md](README.md) — user setup: requirements, install, first launch, API keys
+- [docs/README.md](docs/README.md) — full documentation index
 - [docs/architecture.md](docs/architecture.md) — deliberation pipeline, module layout, tech stack, data storage, context tools
 - [docs/features.md](docs/features.md) — feature reference: debate, attachments, GitHub Q&A, web search, stats, settings, cost
-- [docs/development.md](docs/development.md) — commands (`make dev/test/export`), packaging, contributor notes
+- [docs/development.md](docs/development.md) — commands (`make dev/test`), native dependencies, contributor notes
+- [docs/deployment.md](docs/deployment.md) — packaging and installation (`make export`)
 - [docs/CONTRIBUTING.md](docs/CONTRIBUTING.md) — how to add providers, GitHub tools, UI components
 - [docs/CHANGELOG.md](docs/CHANGELOG.md) — release history
 - [docs/SECURITY.md](docs/SECURITY.md) · [docs/CODE_OF_CONDUCT.md](docs/CODE_OF_CONDUCT.md)

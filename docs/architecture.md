@@ -151,7 +151,7 @@ and cancelled turns also have explicit outcomes. Each tool-loop provider request
 has its own input estimate; the stats rail sums requests and labels all token and
 cost figures as estimates. Reused single-agent syntheses do not add token cost.
 
-The [benchmark harness](../bench/README.md) supplies its own in-memory database,
+The [benchmark harness](benchmarks.md) supplies its own in-memory database,
 providers and event sink without loading app services. It compares the original
 prompt/stopping behavior with the improved pipeline before any Jev integration.
 
