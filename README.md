@@ -1,10 +1,18 @@
-# Elrond
+<p align="center">
+  <img src="build/icon.png" width="144" height="144" alt="Elrond app logo">
+</p>
 
-A council of AI models for your Mac.
+<h1 align="center">Elrond</h1>
+
+<p align="center"><strong>A council of AI models for your Mac.</strong></p>
 
 Ask one question, compare independent answers, and let the models challenge and revise each other's reasoning before a final synthesis. Elrond brings that workflow into a desktop app for code questions, research, writing, and decisions that benefit from several perspectives.
 
 Mix OpenAI, Anthropic, Google, and local Ollama models in the same council. Conversations and attachments are stored on your Mac, credentials live in the macOS Keychain, and local deliberation can run entirely through Ollama.
+
+![Elrond showing two local model answers, a moderator verdict, a final synthesis, and per-turn statistics](docs/images/deliberation.png)
+
+*A deliberation with two Ollama models. Screenshots show sample data in the actual app UI.*
 
 ## Highlights
 
@@ -64,6 +72,8 @@ The setup wizard walks you through provider credentials, model selection, and th
 | Anthropic | Add an [API key](https://console.anthropic.com/settings/keys) |
 | Google | Add an [API key](https://aistudio.google.com/apikey) |
 | Ollama | Start your local server and pull the models you want to use; no API key is required |
+
+![Elrond Agents dialog with provider and model assignments and synthesizer selection](docs/images/agents.png)
 
 Manage the council in **Agents** (the bot icon in the sidebar): add or remove agents, assign provider/model pairs, enable participants, and choose the synthesizer. Several agents can use different models from the same provider, including an entirely local Ollama council.
 
