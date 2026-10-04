@@ -76,7 +76,7 @@ interface MarkdownContentProps {
 
 export function MarkdownContent({ content, className }: MarkdownContentProps): React.JSX.Element {
   return (
-    <div className={cn('prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden', className)}>
+    <div className={cn('response-markdown prose prose-sm dark:prose-invert max-w-none break-words overflow-hidden', className)}>
       <ReactMarkdown
         remarkPlugins={[remarkGfm]}
         components={{
@@ -99,13 +99,16 @@ export function MarkdownContent({ content, className }: MarkdownContentProps): R
                     style={gothicSyntax}
                     language={match[1]}
                     PreTag="div"
+                    codeTagProps={{ style: { fontFamily: 'inherit', fontSize: 'inherit', lineHeight: 'inherit' } }}
                     customStyle={{
                       margin: 0,
                       borderTopLeftRadius: 0,
                       borderTopRightRadius: 0,
                       borderBottomLeftRadius: '0.5rem',
                       borderBottomRightRadius: '0.5rem',
-                      fontSize: '0.8rem',
+                      fontFamily: 'var(--font-family-code)',
+                      fontSize: '0.75rem',
+                      lineHeight: 1.65,
                       border: '1px solid var(--color-border)',
                       background: 'var(--color-syntax-background)'
                     }}

@@ -3,7 +3,7 @@ import { useSessionStore, type TurnStats } from '@renderer/stores/sessionStore'
 import { effectiveSynthesizer, useAgentsStore } from '@renderer/stores/agentsStore'
 import { formatCost, formatTokens } from '@renderer/lib/utils'
 import { deriveTurnStats, type PhaseRow, type TurnTotals } from '@renderer/lib/turnStats'
-import type { LifetimeStats } from '@shared/types'
+import { TERMINATION_LABELS, type LifetimeStats, type TerminationReason } from '@shared/types'
 import { ArrowDown, ArrowUp, CheckCircle2, Clock, Flame, Scale, Zap } from 'lucide-react'
 
 function formatElapsed(ms: number): string {
@@ -29,7 +29,12 @@ function InOutCost({ input, output, cost }: { input: number; output: number; cos
   )
 }
 
-function ConsensusLine({ rounds, converged }: { rounds: number; converged: boolean | null }): React.JSX.Element | null {
+function ConsensusLine({ rounds, converged, terminationReason }: { rounds: number; converged: boolean | null; terminationReason?: TerminationReason | null }): React.JSX.Element | null {
+  if (terminationReason && terminationReason !== 'converged') return (
+    <span className={`flex items-center gap-1 ${terminationReason === 'degraded' ? 'text-warning' : 'text-muted-foreground'}`}>
+      <Scale className="h-3 w-3" />{TERMINATION_LABELS[terminationReason]}
+    </span>
+  )
   if (converged === null) return null
   return converged ? (
     <span className="flex items-center gap-1 text-success">
@@ -37,7 +42,7 @@ function ConsensusLine({ rounds, converged }: { rounds: number; converged: boole
       Consensus in {rounds} round{rounds > 1 ? 's' : ''}
     </span>
   ) : (
-    <span className="flex items-center gap-1 text-warning">
+    <span className="flex items-center gap-1 text-muted-foreground">
       <Scale className="h-3 w-3" />
       No consensus after {rounds} rounds
     </span>
@@ -81,7 +86,7 @@ function PastTurnCard({ stats }: { stats: TurnStats }): React.JSX.Element {
           <Clock className="h-2.5 w-2.5" />
           <span className="font-mono tabular-nums">{formatElapsed(stats.elapsedMs)}</span>
         </span>
-        <ConsensusLine rounds={stats.rounds} converged={stats.converged} />
+        <ConsensusLine rounds={stats.rounds} converged={stats.converged} terminationReason={stats.terminationReason} />
       </div>
     </div>
   )
@@ -93,7 +98,8 @@ function LiveTurnCard({
   isDeliberating,
   elapsed,
   rounds,
-  converged
+  converged,
+  terminationReason
 }: {
   turn: number
   totals: TurnTotals
@@ -101,6 +107,7 @@ function LiveTurnCard({
   elapsed: number | null
   rounds: number
   converged: boolean | null
+  terminationReason?: TerminationReason | null
 }): React.JSX.Element {
   return (
     <div className="space-y-2 rounded-lg border bg-card/50 p-2.5">
@@ -130,7 +137,7 @@ function LiveTurnCard({
             {isDeliberating && <span>and counting…</span>}
           </span>
         )}
-        {!isDeliberating && <ConsensusLine rounds={rounds} converged={converged} />}
+        {!isDeliberating && <ConsensusLine rounds={rounds} converged={converged} terminationReason={terminationReason} />}
       </div>
     </div>
   )
@@ -148,7 +155,8 @@ export function StatsPanel(): React.JSX.Element {
     deliberationStartedAt,
     deliberationEndedAt,
     turnStats,
-    currentTurn
+    currentTurn,
+    terminationReason
   } = useSessionStore()
   const { agents, synthesizerAgentId } = useAgentsStore()
   const synthesizerAgent = effectiveSynthesizer({ agents, synthesizerAgentId })
@@ -212,7 +220,7 @@ export function StatsPanel(): React.JSX.Element {
         <div className="flex items-center gap-1.5 text-xs font-semibold uppercase tracking-wide text-muted-foreground">
           <Zap className="h-3.5 w-3.5" />
           Stats
-          <span className="ml-auto font-normal normal-case">est.</span>
+          <span className="ml-auto font-normal normal-case">estimates</span>
         </div>
 
         <div className="rounded-lg border bg-card/50 p-3 text-center">
@@ -247,6 +255,7 @@ export function StatsPanel(): React.JSX.Element {
             elapsed={elapsed}
             rounds={debateRounds.length}
             converged={lastVerdict ? lastVerdict.converged : null}
+            terminationReason={terminationReason ?? lastVerdict?.terminationReason}
           />
         ) : (
           turnStats.length === 0 && (

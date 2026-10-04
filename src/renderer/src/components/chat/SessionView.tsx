@@ -7,8 +7,8 @@ import { SynthesisPanel } from './SynthesisPanel'
 import { MessageInput } from './MessageInput'
 import { StatsPanel } from '@renderer/components/layout/StatsPanel'
 import { resolveAgentMeta } from '@renderer/lib/providers'
-import type { AgentConfig, Attachment, Message } from '@shared/types'
-import type { DebateVerdict } from '@renderer/stores/sessionStore'
+import { TERMINATION_LABELS, type AgentConfig, type Attachment, type Message } from '@shared/types'
+import { parseStoredVerdict } from '@renderer/lib/debateHistory'
 import { Sparkles, User, GitBranch, ArrowDown, FileText, Loader2 } from 'lucide-react'
 
 interface HistoryRound {
@@ -21,21 +21,6 @@ interface HistoryTurn {
   agents: Message[]
   debateRounds: Map<number, HistoryRound>
   synthesis: Message | null
-}
-
-function parseStoredVerdict(msg: Message | null, hasNextRound: boolean): DebateVerdict | null {
-  if (!msg) return null
-  try {
-    const v = JSON.parse(msg.content)
-    return {
-      converged: Boolean(v.converged),
-      disagreements: Array.isArray(v.disagreements) ? v.disagreements.map(String) : [],
-      summary: typeof v.summary === 'string' ? v.summary : '',
-      continuing: hasNextRound
-    }
-  } catch {
-    return null
-  }
 }
 
 function toHistoryRoundViews(turn: HistoryTurn, agents: AgentConfig[]): DebateRoundView[] {
@@ -294,6 +279,10 @@ export function SessionView({ statsOpen }: { statsOpen: boolean }): React.JSX.El
                 {/* Debate rounds */}
                 {turn.debateRounds.size > 0 && (
                   <DebatePanel rounds={toHistoryRoundViews(turn, agents)} isActive={false} />
+                )}
+
+                {turn.debateRounds.size === 0 && turn.user.termination_reason && (
+                  <div className="text-xs text-muted-foreground">{TERMINATION_LABELS[turn.user.termination_reason]}</div>
                 )}
 
                 {/* Synthesis */}

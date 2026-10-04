@@ -47,7 +47,7 @@ export function AgentPanel({
         </div>
         <div className="flex items-center gap-1">
           {tokenCount !== undefined && tokenCount > 0 && (
-            <span className="text-[11px] text-muted-foreground">{tokenCount} tokens</span>
+            <span className="text-[11px] text-muted-foreground">{tokenCount} tokens (est.)</span>
           )}
           {isStreaming && <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />}
           {content && (

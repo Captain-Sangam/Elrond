@@ -12,7 +12,9 @@ import type {
   StreamStart,
   StreamToken,
   StreamToolEvent,
-  TurnStats
+  TurnStats,
+  TerminationReason,
+  DebateTerminationReason
 } from '@shared/types'
 
 // One MCP tool call shown inline in a streaming message; upserted by callId
@@ -34,6 +36,7 @@ export interface AgentStream {
   isStreaming: boolean
   error: string | null
   toolCalls: ToolCallChip[]
+  reused?: boolean
 }
 
 export interface DebateVerdict {
@@ -41,6 +44,7 @@ export interface DebateVerdict {
   disagreements: string[]
   summary: string
   continuing: boolean
+  terminationReason?: DebateTerminationReason | null
 }
 
 export interface DebateRoundState {
@@ -95,6 +99,7 @@ interface SessionState {
   // 1-based number of the in-flight turn, used to key its persisted stats so
   // archiving the same turn twice overwrites instead of duplicating
   currentTurn: number
+  terminationReason: TerminationReason | null
 
   loadSessions: () => Promise<void>
   setActiveSession: (id: string | null) => Promise<void>
@@ -206,6 +211,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   notices: [],
   turnStats: [],
   currentTurn: 1,
+  terminationReason: null,
 
   loadSessions: async () => {
     const sessions = await window.elrond.getSessions()
@@ -293,7 +299,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
         (state.deliberationEndedAt ?? Date.now()) - state.deliberationStartedAt
       ),
       rounds: state.debateRounds.length,
-      converged: lastVerdict?.converged ?? null
+      converged: lastVerdict?.converged ?? null,
+      terminationReason: state.terminationReason ?? lastVerdict?.terminationReason ?? null
     }
     const turnStats = [...state.turnStats]
     if (existing >= 0) turnStats[existing] = stats
@@ -330,7 +337,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
   },
 
   handleStreamStart: (start) => {
-    const key = `${start.phase}:${start.round ?? 0}:${start.agentId}`
+    const key = `${start.phase}:${start.round ?? 0}:${start.agentId}${start.callId ? `:${start.callId}` : ''}`
     set((state) => ({
       callInputTokens: { ...state.callInputTokens, [key]: start.inputTokens }
     }))
@@ -399,7 +406,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       }))
     } else if (phase === 'synthesis') {
       set({
-        synthesisStream: { ...emptyStream(), content: fullContent, tokenCount }
+        synthesisStream: { ...emptyStream(), content: fullContent, tokenCount, ...(done.reused ? { reused: true } : {}) }
       })
     }
   },
@@ -461,7 +468,7 @@ export const useSessionStore = create<SessionState>((set, get) => ({
 
   handlePhaseChange: (phase) => {
     if (phase.phase === 'complete') {
-      set({ deliberationEndedAt: Date.now() })
+      set({ deliberationEndedAt: Date.now(), terminationReason: phase.terminationReason ?? null })
       // Persist now, not just on the next turn's archive pass: this is the only
       // save the last turn of a session ever gets
       get().archiveCurrentTurn()
@@ -501,7 +508,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
           converged: verdict.converged,
           disagreements: verdict.disagreements,
           summary: verdict.summary,
-          continuing: verdict.continuing
+          continuing: verdict.continuing,
+          ...(verdict.terminationReason !== undefined ? { terminationReason: verdict.terminationReason } : {})
         },
         moderatorTokens: { input: verdict.inputTokens ?? 0, output: verdict.outputTokens ?? 0 }
       }
@@ -521,7 +529,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       currentPrompt: null,
       currentAttachments: [],
       // Cancelled runs never get a 'complete' event — stop the clock here
-      deliberationEndedAt: state.deliberationEndedAt ?? Date.now()
+      deliberationEndedAt: state.deliberationEndedAt ?? Date.now(),
+      terminationReason: state.terminationReason ?? 'cancelled'
     }))
   },
 
@@ -537,7 +546,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       callInputTokens: {},
       deliberationStartedAt: null,
       deliberationEndedAt: null,
-      notices: []
+      notices: [],
+      terminationReason: null
     })
   },
 

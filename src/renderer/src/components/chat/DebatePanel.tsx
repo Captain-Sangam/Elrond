@@ -3,9 +3,10 @@ import { cn } from '@renderer/lib/utils'
 import { MarkdownContent } from './MarkdownContent'
 import { Badge } from '@renderer/components/ui/badge'
 import { CheckCircle2, ChevronDown, ChevronRight, Loader2, Scale, Swords } from 'lucide-react'
-import type { ProviderName } from '@shared/types'
+import { TERMINATION_LABELS, type ProviderName } from '@shared/types'
 import type { DebateVerdict, ToolCallChip } from '@renderer/stores/sessionStore'
 import { ToolCallChips } from './ToolCallChips'
+import { describeIssueReport, presentDebateResponse } from '@renderer/lib/debatePresentation'
 
 export interface DebateEntry {
   agentId: string
@@ -41,7 +42,7 @@ function VerdictBanner({ round }: { round: DebateRoundView }): React.JSX.Element
   }
   const v = round.verdict
   if (!v) return null
-  if (v.converged) {
+  if (v.converged && (!v.terminationReason || v.terminationReason === 'converged')) {
     return (
       <div className="flex items-center gap-2 rounded-md border border-success/20 bg-success/5 px-2.5 py-1.5 text-xs text-success">
         <CheckCircle2 className="h-3 w-3 shrink-0" />
@@ -50,13 +51,18 @@ function VerdictBanner({ round }: { round: DebateRoundView }): React.JSX.Element
     )
   }
   return (
-    <div className="flex items-center gap-2 rounded-md border border-warning/20 bg-warning/5 px-2.5 py-1.5 text-xs text-warning">
+    <div className={cn(
+      'flex items-center gap-2 rounded-md border px-2.5 py-1.5 text-xs',
+      v.terminationReason === 'degraded'
+        ? 'border-warning/20 bg-warning/5 text-warning'
+        : 'bg-muted/30 text-muted-foreground'
+    )}>
       <Scale className="h-3 w-3 shrink-0" />
       <span>
         Moderator: {v.summary || 'agents still disagree'}
         {v.continuing
           ? ` — starting round ${round.round + 1}`
-          : ' — max rounds reached, moving to synthesis'}
+          : ` — ${v.terminationReason ? TERMINATION_LABELS[v.terminationReason] : 'Round limit reached'}, moving to synthesis`}
       </span>
     </div>
   )
@@ -108,31 +114,39 @@ export function DebatePanel({ rounds, maxRounds, isActive }: DebatePanelProps): 
 
               {expanded && (
                 <div className="space-y-3 pl-5">
-                  {round.entries.map((entry) => (
-                    <div key={entry.agentId} className="space-y-1">
-                      <Badge variant="secondary" className="text-[11px]">
-                        {entry.agentName}
-                      </Badge>
-                      {entry.toolCalls && entry.toolCalls.length > 0 && (
-                        <ToolCallChips chips={entry.toolCalls} />
-                      )}
-                      <div>
-                        {entry.error ? (
-                          <div className="text-xs text-destructive">{entry.error}</div>
-                        ) : entry.content ? (
-                          <MarkdownContent
-                            content={entry.content}
-                            className={cn('prose-xs text-xs', entry.isStreaming && 'streaming-cursor')}
-                          />
-                        ) : entry.isStreaming ? (
-                          <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                            <Loader2 className="h-3 w-3 animate-spin" />
-                            Critiquing...
+                  {round.entries.map((entry) => {
+                    const { body, report } = presentDebateResponse(entry.content, entry.isStreaming)
+                    return (
+                      <div key={entry.agentId} className="space-y-1">
+                        <Badge variant="secondary" className="text-[11px]">
+                          {entry.agentName}
+                        </Badge>
+                        {report && (
+                          <div className="text-[11px] text-muted-foreground" title={report.newIssues.join('\n')}>
+                            {describeIssueReport(report)}
                           </div>
-                        ) : null}
+                        )}
+                        {entry.toolCalls && entry.toolCalls.length > 0 && (
+                          <ToolCallChips chips={entry.toolCalls} />
+                        )}
+                        <div>
+                          {entry.error ? (
+                            <div className="text-xs text-destructive">{entry.error}</div>
+                          ) : body ? (
+                            <MarkdownContent
+                              content={body}
+                              className={cn(entry.isStreaming && 'streaming-cursor')}
+                            />
+                          ) : entry.isStreaming ? (
+                            <div className="flex items-center gap-1 text-xs text-muted-foreground">
+                              <Loader2 className="h-3 w-3 animate-spin" />
+                              Critiquing...
+                            </div>
+                          ) : null}
+                        </div>
                       </div>
-                    </div>
-                  ))}
+                    )
+                  })}
                 </div>
               )}
 

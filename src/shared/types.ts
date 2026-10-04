@@ -30,6 +30,34 @@ export interface IndexedRepo {
 
 export type MessageRole = 'user' | 'agent' | 'debate' | 'moderator' | 'synthesis'
 
+export type DebateTerminationReason = 'converged' | 'stagnated' | 'budget_exhausted' | 'degraded'
+export type TerminationReason = DebateTerminationReason | 'not_requested' | 'single_agent' | 'cancelled'
+
+export const TERMINATION_LABELS: Record<TerminationReason, string> = {
+  converged: 'Agreement reached',
+  stagnated: 'Positions unchanged',
+  budget_exhausted: 'Round limit reached',
+  degraded: 'Review incomplete',
+  not_requested: 'Debate off',
+  single_agent: 'Single agent',
+  cancelled: 'Cancelled'
+}
+
+export interface DebateIssue {
+  id: string
+  description: string
+}
+
+// The bounded text actually supplied to the model, including failed calls.
+export interface ToolResult {
+  callId: string
+  toolName: string
+  serverName: string
+  argsJson: string
+  content: string
+  isError: boolean
+}
+
 export interface Message {
   id: string
   session_id: string
@@ -44,6 +72,8 @@ export interface Message {
   round: number
   created_at: string
   attachments?: Attachment[]
+  tool_results?: string | null
+  termination_reason?: TerminationReason | null
 }
 
 export interface Attachment {
@@ -96,6 +126,8 @@ export interface StreamStart {
   phase: StreamPhase
   round?: number
   inputTokens: number
+  callId?: string
+  estimated?: boolean
 }
 
 export interface StreamToken {
@@ -115,6 +147,8 @@ export interface StreamDone {
   tokenCount: number
   phase: StreamPhase
   round?: number
+  toolResults?: ToolResult[]
+  reused?: boolean
 }
 
 export interface StreamError {
@@ -130,6 +164,7 @@ export interface PhaseChange {
   phase: 'fetching_context' | 'searching_web' | 'initial' | 'debate' | 'moderating' | 'synthesis' | 'complete'
   round?: number
   maxRounds?: number
+  terminationReason?: TerminationReason
 }
 
 // Non-fatal notices surfaced during a deliberation (channel 'stream:notice')
@@ -176,6 +211,8 @@ export interface ModeratorVerdictEvent {
   continuing: boolean
   inputTokens: number
   outputTokens: number
+  issues?: DebateIssue[]
+  terminationReason?: DebateTerminationReason | null
 }
 
 // ---------------------------------------------------------------------------
@@ -252,6 +289,7 @@ export interface TurnStats {
   elapsedMs: number
   rounds: number
   converged: boolean | null
+  terminationReason?: TerminationReason | null
 }
 
 export interface DeliberationRequest {

@@ -134,6 +134,13 @@ afterEach(() => {
 })
 
 describe('handleStreamStart', () => {
+  it('retains separate tool-loop call estimates and deduplicates the same call ID', () => {
+    const { handleStreamStart } = useSessionStore.getState()
+    handleStreamStart(startEvt({ callId: 'first', inputTokens: 10 }))
+    handleStreamStart(startEvt({ callId: 'second', inputTokens: 55 }))
+    handleStreamStart(startEvt({ callId: 'second', inputTokens: 55 }))
+    expect(useSessionStore.getState().callInputTokens).toEqual({ 'initial:0:a1:first': 10, 'initial:0:a1:second': 55 })
+  })
   it('records input tokens under phase:round:agentId, defaulting round to 0', () => {
     const { handleStreamStart } = useSessionStore.getState()
     handleStreamStart(startEvt({ inputTokens: 123 }))
@@ -311,6 +318,18 @@ describe('handleStreamTool', () => {
 })
 
 describe('handlePhaseChange', () => {
+  it.each(['converged', 'stagnated', 'budget_exhausted', 'degraded'] as const)('archives the terminal reason through persistence: %s', async (terminationReason) => {
+    useAgentsStore.setState({ agents: [openaiAgent], synthesizerAgentId: 'a1' })
+    useSessionStore.setState({ activeSessionId: 'sess1', isDeliberating: true, deliberationStartedAt: Date.now(), currentTurn: 1 })
+    const s = useSessionStore.getState()
+    s.handleStreamStart(startEvt({ callId: 'one' }))
+    s.handleStreamDone(doneEvt())
+    s.handlePhaseChange({ phase: 'complete', terminationReason })
+    expect(useSessionStore.getState().terminationReason).toBe(terminationReason)
+    expect(elrond.saveTurnStats).toHaveBeenCalledWith('sess1', expect.objectContaining({ terminationReason }))
+    await vi.waitFor(() => expect(useSessionStore.getState().isDeliberating).toBe(false))
+    expect(useSessionStore.getState().turnStats[0].terminationReason).toBe(terminationReason)
+  })
   it('tracks debate round bookkeeping', () => {
     const s = useSessionStore.getState()
     s.handlePhaseChange({ phase: 'debate', round: 1, maxRounds: 3 })

@@ -169,6 +169,37 @@
   word-break: break-word;
 }
 
+/* Keep model-authored Markdown on the same app typography scale. */
+.response-markdown {
+  font-family: var(--font-family-body);
+  font-size: 0.875rem;
+  line-height: 1.65;
+}
+
+.response-markdown p,
+.response-markdown ul,
+.response-markdown ol,
+.response-markdown li,
+.response-markdown blockquote,
+.response-markdown th,
+.response-markdown td {
+  font-family: inherit;
+  font-size: inherit;
+  line-height: inherit;
+}
+
+.response-markdown h1,
+.response-markdown h2,
+.response-markdown h3,
+.response-markdown h4,
+.response-markdown h5,
+.response-markdown h6 {
+  font-family: inherit;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 600;
+}
+
 /* Markdown table styling */
 .md-table {
   border-collapse: collapse;

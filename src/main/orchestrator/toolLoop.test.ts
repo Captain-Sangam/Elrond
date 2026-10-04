@@ -1,4 +1,5 @@
 import { describe, expect, it } from 'vitest'
+import { getEventListeners } from 'node:events'
 import {
   ToolsUnsupportedError,
   type AgentProvider,
@@ -32,6 +33,7 @@ type ScriptStep = StreamChunk | (() => void)
 interface RecordedStream {
   messages: ChatMessage[]
   tools: ToolDefinition[] | undefined
+  signal?: AbortSignal
 }
 
 // Fake provider: each streamChat call consumes the next script entry (the last
@@ -45,7 +47,7 @@ function makeProvider(scripts: (ScriptStep[] | Error)[]): {
   const provider: AgentProvider = {
     name: 'fake',
     async *streamChat(messages, _model, _credential, options) {
-      streams.push({ messages: [...messages], tools: options?.tools })
+      streams.push({ messages: [...messages], tools: options?.tools, signal: options?.signal })
       const script = scripts[Math.min(n, scripts.length - 1)]
       n++
       if (script instanceof Error) throw script
@@ -215,6 +217,21 @@ describe('buildNamespacedTools', () => {
 })
 
 describe('runToolLoop', () => {
+  it('keeps cancellation effective across tool iterations without retaining parent abort listeners', async () => {
+    const h = makeHarness()
+    const nt = linearTools()
+    const { mcp } = makeMcp()
+    const parent = new AbortController()
+    const { provider, streams } = makeProvider([
+      [toolCall('c1', 'linear__search')],
+      [() => parent.abort(), text('should not stream')]
+    ])
+    await runToolLoop(loopParams(h, { provider, model: 'm-cancel-cleanup', signal: parent.signal, tools: nt.tools, toolIndex: nt.toolIndex, mcp }))
+    expect(streams).toHaveLength(2)
+    expect(streams.every((s) => s.signal?.aborted)).toBe(true)
+    expect(getEventListeners(parent.signal, 'abort')).toHaveLength(0)
+    expect(h.textDeltas).not.toContain('should not stream')
+  })
   it('forwards text in a single iteration when no tools are configured', async () => {
     const h = makeHarness()
     const { provider, streams } = makeProvider([[text('Hello '), text('world')]])
@@ -223,7 +240,7 @@ describe('runToolLoop', () => {
     expect(h.textDeltas).toEqual(['Hello ', 'world'])
     expect(streams).toHaveLength(1)
     expect(streams[0].tools).toBeUndefined()
-    expect(h.iterationSnapshots).toHaveLength(0)
+    expect(h.iterationSnapshots).toHaveLength(1)
   })
 
   it('passes tools to the stream but stays single-iteration when the model makes no calls', async () => {
@@ -264,6 +281,9 @@ describe('runToolLoop', () => {
     )
 
     expect(result.content).toBe('Checking. \n\nDone.')
+    expect(result.toolResults).toEqual([{ callId: 'c1', toolName: 'linear__search', serverName: 'Linear', argsJson: '{\"q\":\"foo\"}', content: 'found 3 issues', isError: false }])
+    expect(result.inputTokens).toBeGreaterThan(0)
+    expect(result.outputTokens).toBeGreaterThan(Math.ceil(result.content.length / 4))
     expect(h.textDeltas).toEqual(['Checking. ', '\n\n', 'Done.'])
     expect(streams).toHaveLength(2)
 
@@ -306,8 +326,9 @@ describe('runToolLoop', () => {
     ])
 
     // onIterationStart fired once, before the re-stream, with the grown list
-    expect(h.iterationSnapshots).toHaveLength(1)
-    expect(h.iterationSnapshots[0]).toHaveLength(3)
+    expect(h.iterationSnapshots).toHaveLength(2)
+    expect(h.iterationSnapshots[0]).toHaveLength(1)
+    expect(h.iterationSnapshots[1]).toHaveLength(3)
   })
 
   it('answers an unknown tool with an error result and no MCP dispatch', async () => {
@@ -623,7 +644,7 @@ describe('runToolLoop', () => {
     ])
     // No re-stream after abort
     expect(streams).toHaveLength(1)
-    expect(h.iterationSnapshots).toHaveLength(0)
+    expect(h.iterationSnapshots).toHaveLength(1)
   })
 
   it('streams the final allowed iteration without tools once the cap is reached', async () => {
@@ -653,8 +674,8 @@ describe('runToolLoop', () => {
     expect(streams[MAX_TOOL_ITERATIONS].tools).toBeUndefined()
     expect(calls).toHaveLength(MAX_TOOL_ITERATIONS)
     // onIterationStart fired before each of the 8 re-streams with a growing list
-    expect(h.iterationSnapshots).toHaveLength(MAX_TOOL_ITERATIONS)
-    expect(h.iterationSnapshots[0]).toHaveLength(3)
+    expect(h.iterationSnapshots).toHaveLength(MAX_TOOL_ITERATIONS + 1)
+    expect(h.iterationSnapshots[0]).toHaveLength(1)
     expect(h.iterationSnapshots.at(-1)).toHaveLength(1 + 2 * MAX_TOOL_ITERATIONS)
   })
 

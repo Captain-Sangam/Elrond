@@ -152,6 +152,12 @@ export function runMigrations(db: Database.Database): void {
     `)
   }
 
+  for (const column of ['tool_results', 'termination_reason']) {
+    if (!messageColsAfter.some((c) => c.name === column)) {
+      db.exec(`ALTER TABLE messages ADD COLUMN ${column} TEXT`)
+    }
+  }
+
   // Per-turn token/cost totals. The stats rail is derived from live streaming
   // state, so without this table reopening a session showed an empty rail.
   // Written when a turn finishes, read back on session load.
@@ -169,6 +175,11 @@ export function runMigrations(db: Database.Database): void {
       FOREIGN KEY (session_id) REFERENCES sessions(id) ON DELETE CASCADE
     );
   `)
+
+  const statsCols = db.pragma('table_info(turn_stats)') as { name: string }[]
+  if (!statsCols.some((c) => c.name === 'termination_reason')) {
+    db.exec('ALTER TABLE turn_stats ADD COLUMN termination_reason TEXT')
+  }
 
   // Remove orphaned empty sessions left by the old eager-create New Chat flow
   db.exec(`
