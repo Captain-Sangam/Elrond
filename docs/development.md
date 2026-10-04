@@ -19,7 +19,7 @@ make dev         # development mode with HMR
 make build       # production build into out/
 make start       # build + launch the production bundle
 make test        # typecheck + unit tests + build — the full local gate
-make bench       # benchmark harness; see bench/README.md for live runs/labeling
+make bench       # benchmark harness; see docs/benchmarks.md for live runs/labeling
 make export      # package Elrond.app into /Applications (Spotlight-searchable)
 make clean       # remove build output
 ```
@@ -63,13 +63,7 @@ run it with `ELECTRON_ENABLE_LOGGING=1`.
 
 ## Packaging
 
-`make export` builds an unsigned `Elrond.app` with electron-builder (config in
-`electron-builder.yml`, icon in `build/icon.icns`) and installs it into
-`/Applications` (falls back to `~/Applications`). No signing certificates are
-needed — electron-builder ad-hoc signs on Apple Silicon so the app launches.
-
-Re-run `make export` to replace the installed copy after changes. Quit the
-running instance from the tray first, or the old build keeps running.
+See [packaging and installation](deployment.md) for `make export`, installation paths, native rebuilds, and startup troubleshooting.
 
 ## Notes for contributors
 
