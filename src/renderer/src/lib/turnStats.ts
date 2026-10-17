@@ -1,4 +1,4 @@
-import type { AgentConfig } from '@shared/types'
+import type { AgentConfig, AuthMode, ProviderName } from '@shared/types'
 import type { AgentStream, DebateRoundState } from '@renderer/stores/sessionStore'
 import { estimateCost } from './utils'
 
@@ -31,6 +31,8 @@ export function deriveTurnStats(params: {
   callInputTokens: Record<string, number>
   isDeliberating: boolean
   currentPhase: string | null
+  // Providers in subscription mode are priced at zero
+  authModes?: Partial<Record<ProviderName, AuthMode>>
 }): TurnTotals {
   const {
     enabledAgents,
@@ -40,7 +42,8 @@ export function deriveTurnStats(params: {
     synthesisStream,
     callInputTokens,
     isDeliberating,
-    currentPhase
+    currentPhase,
+    authModes
   } = params
 
   const agentInput = (phase: string, round: number, id: string): number => {
@@ -118,7 +121,15 @@ export function deriveTurnStats(params: {
   const input = rows.reduce((s, r) => s + r.input, 0)
   const output = rows.reduce((s, r) => s + r.output, 0)
   const cost = Object.values(perAgent).reduce(
-    (sum, acc) => sum + estimateCost(acc.agent.model, acc.input, acc.output, acc.agent.provider),
+    (sum, acc) =>
+      sum +
+      estimateCost(
+        acc.agent.model,
+        acc.input,
+        acc.output,
+        acc.agent.provider,
+        authModes?.[acc.agent.provider] === 'subscription'
+      ),
     0
   )
 

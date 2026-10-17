@@ -3,6 +3,7 @@ import { useSessionStore, type TurnStats } from '@renderer/stores/sessionStore'
 import { effectiveSynthesizer, useAgentsStore } from '@renderer/stores/agentsStore'
 import { formatCost, formatTokens } from '@renderer/lib/utils'
 import { deriveTurnStats, type PhaseRow, type TurnTotals } from '@renderer/lib/turnStats'
+import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { TERMINATION_LABELS, type LifetimeStats, type TerminationReason } from '@shared/types'
 import { ArrowDown, ArrowUp, CheckCircle2, Clock, Flame, Scale, Zap } from 'lucide-react'
 
@@ -159,6 +160,7 @@ export function StatsPanel(): React.JSX.Element {
     terminationReason
   } = useSessionStore()
   const { agents, synthesizerAgentId } = useAgentsStore()
+  const authModes = useSettingsStore((s) => s.authModes)
   const synthesizerAgent = effectiveSynthesizer({ agents, synthesizerAgentId })
 
   // Ticks the elapsed timer while a deliberation is running
@@ -188,7 +190,8 @@ export function StatsPanel(): React.JSX.Element {
     synthesisStream,
     callInputTokens,
     isDeliberating,
-    currentPhase
+    currentPhase,
+    authModes
   })
 
   const elapsed = deliberationStartedAt

@@ -1,4 +1,4 @@
-import type { AgentConfig, ProviderName } from '@shared/types'
+import type { AgentConfig, AuthMode, ProviderName } from '@shared/types'
 
 export const PROVIDER_LABELS: Record<ProviderName, string> = {
   openai: 'OpenAI',
@@ -58,4 +58,20 @@ export function resolveAgentMeta(
     return { displayName: PROVIDER_LABELS[legacy], provider: legacy }
   }
   return { displayName: agentName || 'Agent', provider: 'openai' }
+}
+
+// After an API/subscription switch, whether an agent's model still runs on the
+// new backend. The Claude CLI also accepts full claude-* names, and an empty
+// list (catalog unavailable) never remaps — an empty model would fail saving.
+export function keepsModelAfterSwitch(
+  model: string,
+  models: string[],
+  provider: ProviderName,
+  mode: AuthMode
+): boolean {
+  return (
+    models.length === 0 ||
+    models.includes(model) ||
+    (provider === 'anthropic' && mode === 'subscription' && model.startsWith('claude-'))
+  )
 }

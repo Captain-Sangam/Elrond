@@ -6,6 +6,14 @@ The format is based on [Keep a Changelog](https://keepachangelog.com/), and this
 
 ## [Unreleased]
 
+### Added
+
+**Subscription login for Anthropic and OpenAI**
+
+- Anthropic and OpenAI agents can run on a Claude or ChatGPT subscription instead of an API key: an API key / Subscription switch per provider in the setup wizard and Settings. Subscription mode runs the installed `claude` / `codex` CLI headless for each call, using its own login — Elrond reads no tokens. See [features.md](features.md#subscription-login)
+- Login detection via `claude auth status` / `codex login status`; runs never fall back to API billing (billing env vars stripped, Codex forced to ChatGPT login, Claude API-key sources rejected)
+- Subscription calls show $0 in the stats rail; switching modes remaps agents whose model the new backend can't run
+
 ### Changed
 
 **UI framework: Astryx design system**

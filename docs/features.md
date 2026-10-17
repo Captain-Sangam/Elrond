@@ -13,11 +13,32 @@
 ## Agents & Providers
 
 - Agents are named slots decoupled from providers — manage them in the Agents dialog (bot icon in the sidebar)
-- Providers: OpenAI, Anthropic, Google (cloud, API keys in Keychain) and **Ollama** (local, keyless)
+- Providers: OpenAI, Anthropic, Google (cloud, API keys in Keychain) and **Ollama** (local, keyless). OpenAI and Anthropic can also run on your ChatGPT / Claude subscription — see [Subscription Login](#subscription-login)
 - Several agents can share a provider — e.g. two different Ollama models debating each other
 - Per-agent provider + model assignment, enable/disable toggle, and synthesizer selection
 - Ollama connection in Settings → Providers: server URL, test connection, discovered model list
 - Local Ollama agents cost $0 in the stats rail
+
+## Subscription Login
+
+Anthropic and OpenAI agents can run on your Claude (Pro/Max/Team) or ChatGPT (Plus/Pro) plan instead of a pay-per-token API key. Pick **Subscription** for the provider in the setup wizard or Settings → Providers.
+
+- Elrond runs the vendor's own CLI for every call — `claude -p` (Claude Code) for Anthropic, `codex exec` (Codex CLI) for OpenAI — so the CLI authenticates with your existing login and refreshes its own tokens. Elrond never reads or stores subscription tokens
+- Setup is just installing the CLI and logging in once in a terminal (`claude`, `codex login`). Choosing Subscription detects the login automatically; the Agents dialog re-checks it on every open
+- Never falls back to API billing: API-key and endpoint environment variables are stripped from the CLI's environment, Codex is forced onto the ChatGPT login, and a Claude run that reports an API-key source fails with an error
+- Runs are isolated from your CLI setup: no CLAUDE.md, hooks, plugins or MCP servers (`--safe-mode`), no Codex `config.toml`, shell, hooks, plugins, apps or web search, and an empty working directory so no project AGENTS.md is found
+- Model lists come from the CLI: Claude Code aliases (`sonnet`, `opus`, `haiku`, `fable` — always the latest model; full `claude-*` names also work) and the Codex model catalog
+- Switching modes moves agents off models the new backend can't run; the switch is disabled while a deliberation is running
+- Subscription calls cost $0 in the stats rail
+
+Limits:
+
+- No MCP tools — subscription agents answer without them (the same fallback as a model without tool support)
+- Codex returns each answer as one complete message rather than streaming token by token
+- Codex can't read PDF attachments (the model is told the file was omitted); images work on both
+- Each call starts a CLI process, adding about a second or two
+- Codex still applies a user-wide `~/.codex/AGENTS.md` if you have one
+- Usage limits are your plan's; hitting one shows the CLI's error
 
 ## Attachments
 
@@ -85,7 +106,7 @@
 ## Settings
 
 - Tabbed dialog: General, Providers, GitHub, Web Search, MCP
-- Cloud API keys with test buttons; Ollama server URL with test connection + model list
+- Cloud API keys with test buttons, or the API key / Subscription switch for OpenAI and Anthropic; Ollama server URL with test connection + model list
 - Per-agent model selection lives in the Agents dialog (live dropdowns from each provider)
 - Debate toggle and max debate rounds (1–5)
 - Custom system prompt for all agents

@@ -45,6 +45,7 @@ src/
         anthropic.ts             Anthropic streaming + tool calling
         google.ts                Google Gemini streaming + tool calling
         ollama.ts                Local Ollama streaming (OpenAI-compatible /v1)
+        cli.ts                   Subscription mode: runs the claude / codex CLI per call
       prompts.ts                 Debate + synthesis prompt templates
       toolLoop.ts                Agentic loop: stream → call MCP tools → re-stream
       index.ts                   Pipeline controller (fan-out, debate, synthesis)

@@ -64,11 +64,12 @@ export function estimateCost(
   model: string,
   inputTokens: number,
   outputTokens: number,
-  provider?: string
+  provider?: string,
+  subscription = false
 ): number {
-  // Local models are free — without this, unknown Ollama models would show
-  // phantom cost from the fallback rates below
-  if (provider === 'ollama') return 0
+  // Local models and subscription (CLI) calls cost nothing per token —
+  // without this they would show phantom cost from the fallback rates below
+  if (provider === 'ollama' || subscription) return 0
   const inputCost = (COST_PER_1K_INPUT[model] || 0.003) * (inputTokens / 1000)
   const outputCost = (COST_PER_1K_OUTPUT[model] || 0.015) * (outputTokens / 1000)
   return inputCost + outputCost

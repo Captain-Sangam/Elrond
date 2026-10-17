@@ -4,7 +4,9 @@ import { testOpenAIKey } from '../orchestrator/providers/openai'
 import { testAnthropicKey } from '../orchestrator/providers/anthropic'
 import { testGoogleKey } from '../orchestrator/providers/google'
 import { testOllamaConnection } from '../orchestrator/providers/ollama'
-import type { KeyProvider, ProviderName } from '../../shared/types'
+import { detectSubscription } from '../orchestrator/providers/cli'
+import { getShellPath } from '../mcp/shellEnv'
+import type { KeyProvider, ProviderName, SubscriptionProvider } from '../../shared/types'
 
 export function registerKeysHandlers(): void {
   ipcMain.handle('keys:get', async (_, provider: KeyProvider) => {
@@ -34,5 +36,9 @@ export function registerKeysHandlers(): void {
 
   ipcMain.handle('ollama:test', async (_, baseUrl: string) => {
     return testOllamaConnection(baseUrl)
+  })
+
+  ipcMain.handle('subscription:detect', async (_, provider: SubscriptionProvider) => {
+    return detectSubscription(provider, await getShellPath())
   })
 }

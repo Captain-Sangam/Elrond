@@ -104,6 +104,17 @@ export type ProviderName = 'openai' | 'anthropic' | 'google' | 'ollama'
 // key. Ollama is deliberately absent — it's local and keyless.
 export type KeyProvider = 'openai' | 'anthropic' | 'google' | 'tavily'
 
+// Providers that can run on the user's consumer subscription through the
+// vendor's CLI (claude / codex) instead of an API key. The choice is stored
+// per provider as the `${provider}_auth` setting.
+export type SubscriptionProvider = 'anthropic' | 'openai'
+export type AuthMode = 'api' | 'subscription'
+
+export interface SubscriptionStatus {
+  ok: boolean
+  detail: string
+}
+
 // A named deliberation slot. Agents are decoupled from providers: several
 // agents may share a provider (e.g. two different Ollama models debating).
 export interface AgentConfig {
@@ -317,6 +328,8 @@ export interface ElrondAPI {
   testApiKey: (provider: ProviderName, key: string) => Promise<boolean>
   testWebSearchKey: (key: string) => Promise<boolean>
   testOllamaConnection: (baseUrl: string) => Promise<boolean>
+  // Whether the provider's CLI is installed and logged in to a subscription
+  detectSubscription: (provider: SubscriptionProvider) => Promise<SubscriptionStatus>
 
   // Agents
   getAgents: () => Promise<AgentConfig[]>
@@ -357,7 +370,8 @@ export interface ElrondAPI {
   onIndexProgress: (callback: (progress: IndexProgressEvent) => void) => () => void
 
   // Models — credential is the API key for cloud providers, or an optional
-  // base-URL override for ollama (defaults to the stored ollama_base_url)
+  // base-URL override for ollama (defaults to the stored ollama_base_url).
+  // Providers in subscription mode list their CLI's models and ignore it.
   listModels: (provider: ProviderName, credential?: string) => Promise<string[]>
 
   // Export
