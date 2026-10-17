@@ -4,7 +4,13 @@ import { effectiveSynthesizer, useAgentsStore } from '@renderer/stores/agentsSto
 import { formatCost, formatTokens } from '@renderer/lib/utils'
 import { deriveTurnStats, type PhaseRow, type TurnTotals } from '@renderer/lib/turnStats'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
-import { TERMINATION_LABELS, type LifetimeStats, type TerminationReason } from '@shared/types'
+import {
+  TERMINATION_LABELS,
+  type LifetimeStats,
+  type SubscriptionProvider,
+  type SubscriptionUsage,
+  type TerminationReason
+} from '@shared/types'
 import { ArrowDown, ArrowUp, CheckCircle2, Clock, Flame, Scale, Zap } from 'lucide-react'
 
 function formatElapsed(ms: number): string {
@@ -144,6 +150,68 @@ function LiveTurnCard({
   )
 }
 
+const PLAN_NAMES: Record<SubscriptionProvider, string> = { anthropic: 'Claude plan', openai: 'ChatGPT plan' }
+
+function formatResetIn(at: number, now: number): string {
+  const mins = Math.max(1, Math.round((at - now) / 60_000))
+  if (mins < 60) return `${mins}m`
+  if (mins < 1440) return `${Math.floor(mins / 60)}h ${mins % 60}m`
+  return `${Math.floor(mins / 1440)}d ${Math.floor((mins % 1440) / 60)}h`
+}
+
+// Subscription rate-limit windows. Claude's numbers come from its last run
+// (the CLI has no usage command), hence the "as of" time.
+function PlanUsage({
+  provider,
+  usage
+}: {
+  provider: SubscriptionProvider
+  usage: SubscriptionUsage | null | undefined
+}): React.JSX.Element {
+  const now = Date.now()
+  return (
+    <div className="space-y-1.5">
+      <div className="flex items-center justify-between text-[11px]">
+        <span className="font-medium text-foreground">{PLAN_NAMES[provider]}</span>
+        {usage && provider === 'anthropic' && (
+          <span>as of {new Date(usage.checkedAt).toLocaleTimeString([], { hour: 'numeric', minute: '2-digit' })}</span>
+        )}
+      </div>
+      {usage ? (
+        usage.windows.map((w) => {
+          // A window that has reset since the reading starts over at 0
+          const reset = w.resetsAt !== null && w.resetsAt <= now
+          const pct = reset ? 0 : Math.min(w.usedPercent, 100)
+          return (
+            <div key={w.label} className="space-y-0.5">
+              <div className="flex items-center justify-between text-[11px]">
+                <span>{w.label}</span>
+                <span className="font-mono tabular-nums">
+                  {reset ? 'reset' : `${pct}%${w.resetsAt !== null ? ` · ${formatResetIn(w.resetsAt, now)}` : ''}`}
+                </span>
+              </div>
+              <div className="h-1 rounded-full bg-muted">
+                <div
+                  className={`h-1 rounded-full ${pct >= 90 ? 'bg-destructive' : pct >= 70 ? 'bg-warning' : 'bg-primary'}`}
+                  style={{ width: `${pct}%` }}
+                />
+              </div>
+            </div>
+          )
+        })
+      ) : (
+        <div className="text-[11px]">
+          {usage === undefined
+            ? 'Checking…'
+            : provider === 'anthropic'
+              ? 'Shows after the next Claude run'
+              : 'Usage unavailable'}
+        </div>
+      )}
+    </div>
+  )
+}
+
 export function StatsPanel(): React.JSX.Element {
   const {
     messages,
@@ -170,6 +238,21 @@ export function StatsPanel(): React.JSX.Element {
     const id = setInterval(() => setNow(Date.now()), 1000)
     return () => clearInterval(id)
   }, [isDeliberating])
+
+  // Plan limits for providers on a subscription — refreshed on open, on a
+  // mode switch, and when a deliberation ends
+  const [planUsage, setPlanUsage] = useState<Partial<Record<SubscriptionProvider, SubscriptionUsage | null>>>({})
+  const subscriptionProviders = (['anthropic', 'openai'] as const).filter((p) => authModes[p] === 'subscription')
+  useEffect(() => {
+    if (isDeliberating) return
+    for (const provider of ['anthropic', 'openai'] as const) {
+      if (authModes[provider] !== 'subscription') continue
+      window.elrond
+        .getSubscriptionUsage(provider)
+        .then((usage) => setPlanUsage((prev) => ({ ...prev, [provider]: usage })))
+        .catch(() => setPlanUsage((prev) => ({ ...prev, [provider]: null })))
+    }
+  }, [isDeliberating, authModes])
 
   // App-lifetime turn count across all sessions; refreshed as messages persist
   const [lifetime, setLifetime] = useState<LifetimeStats | null>(null)
@@ -270,7 +353,10 @@ export function StatsPanel(): React.JSX.Element {
       </div>
 
       {/* Pinned: app-lifetime footer */}
-      <div className="border-t px-3 py-3 text-xs text-muted-foreground">
+      <div className="space-y-3 border-t px-3 py-3 text-xs text-muted-foreground">
+        {subscriptionProviders.map((provider) => (
+          <PlanUsage key={provider} provider={provider} usage={planUsage[provider]} />
+        ))}
         <div className="flex items-center justify-between">
           <span>Turns · all sessions</span>
           <span className="font-mono tabular-nums">{lifetime?.turns ?? '–'}</span>

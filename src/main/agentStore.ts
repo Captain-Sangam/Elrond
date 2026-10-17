@@ -76,6 +76,17 @@ export function usesSubscription(provider: ProviderName): boolean {
   return (provider === 'anthropic' || provider === 'openai') && getSetting(`${provider}_auth`) === 'subscription'
 }
 
+// The user's own CLI MCP servers opted into for subscription runs (the
+// `${provider}_cli_mcp` setting, a JSON array of server names)
+export function getCliMcpServers(provider: 'anthropic' | 'openai'): string[] {
+  try {
+    const names = JSON.parse(getSetting(`${provider}_cli_mcp`) ?? '[]')
+    return Array.isArray(names) ? names.filter((n): n is string => typeof n === 'string') : []
+  } catch {
+    return []
+  }
+}
+
 export function getSynthesizerAgentId(): string | null {
   return getSetting('synthesizer_agent_id')
 }

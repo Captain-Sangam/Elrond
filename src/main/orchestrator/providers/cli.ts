@@ -4,7 +4,13 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { createInterface } from 'readline'
 import { v4 as uuidv4 } from 'uuid'
-import type { SubscriptionProvider, SubscriptionStatus } from '../../../shared/types'
+import type {
+  CliMcpServer,
+  SubscriptionProvider,
+  SubscriptionStatus,
+  SubscriptionUsage,
+  UsageWindow
+} from '../../../shared/types'
 import { toAnthropicBlock } from './anthropic'
 import {
   contentToText,
@@ -13,7 +19,8 @@ import {
   type ChatMessage,
   type ContentPart,
   type StreamChatOptions,
-  type StreamChunk
+  type StreamChunk,
+  type ToolActivity
 } from './types'
 
 // Subscription mode: every call runs the vendor's own CLI (`claude -p`,
@@ -58,8 +65,32 @@ export interface CliEvent {
   is_error?: boolean
   result?: string
   event?: { type?: string; delta?: { type?: string; text?: string } }
-  item?: { type?: string; text?: string }
+  // Claude assistant (tool_use) and user (tool_result) messages
+  message?: {
+    content?: {
+      type?: string
+      id?: string
+      name?: string
+      input?: unknown
+      tool_use_id?: string
+      content?: unknown
+      is_error?: boolean
+    }[]
+  }
+  // Codex items; mcp_tool_call carries server/tool/arguments/result/error
+  item?: {
+    type?: string
+    text?: string
+    id?: string
+    server?: string
+    tool?: string
+    arguments?: unknown
+    result?: { content?: unknown } | null
+    error?: { message?: string } | string | null
+    status?: string
+  }
   error?: { message?: string }
+  rate_limit_info?: { unifiedWindows?: Record<string, { utilization?: number; resetsAt?: number }> }
 }
 
 // Runs a CLI with `input` on stdin and yields its stdout JSONL events
@@ -68,10 +99,11 @@ async function* runCli(
   args: string[],
   input: string,
   path: string,
-  signal?: AbortSignal
+  signal?: AbortSignal,
+  extraEnv?: NodeJS.ProcessEnv
 ): AsyncGenerator<CliEvent> {
   // `signal` SIGTERMs the child when the deliberation is cancelled
-  const child = spawn(cmd, args, { cwd: getWorkDir(), env: cliEnv(path), signal })
+  const child = spawn(cmd, args, { cwd: getWorkDir(), env: { ...cliEnv(path), ...extraEnv }, signal })
   let stderr = ''
   child.stderr.on('data', (chunk) => {
     stderr = (stderr + chunk).slice(-4000)
@@ -115,6 +147,7 @@ async function* runCli(
 export interface ParsedEvent {
   text?: string
   done?: boolean
+  tools?: ToolActivity[]
 }
 
 // Maps events to text chunks. `parse` throws on error events and reports
@@ -129,28 +162,72 @@ export async function* toChunks(
   for await (const event of events) {
     const parsed = parse(event)
     if (parsed?.text) yield { type: 'text', delta: parsed.text }
+    for (const activity of parsed?.tools ?? []) yield { type: 'tool_activity', activity }
     if (parsed?.done) done = true
   }
   if (!done) throw new Error(`${cli} exited before finishing its answer`)
 }
 
-export function parseClaudeEvent(e: CliEvent): ParsedEvent | undefined {
-  // 'none' means the subscription login; anything else is an API key that
-  // would bill per token
-  if (e.type === 'system' && e.subtype === 'init' && e.apiKeySource && e.apiKeySource !== 'none') {
-    throw new Error(
-      `Claude Code is using an API key (${e.apiKeySource}), not your subscription — run \`claude auth login\` with your Claude account`
-    )
+// Tool results arrive as a string or as MCP content blocks
+function toolResultText(content: unknown): string {
+  if (typeof content === 'string') return content
+  if (Array.isArray(content)) {
+    return content
+      .map((b: { type?: string; text?: string }) => (b?.type === 'text' && typeof b.text === 'string' ? b.text : '[non-text content omitted]'))
+      .join('\n')
   }
-  if (e.type === 'stream_event' && e.event?.type === 'content_block_delta' && e.event.delta?.type === 'text_delta') {
-    return { text: e.event.delta.text }
+  return content === undefined || content === null ? '' : JSON.stringify(content)
+}
+
+// Claude names MCP tools mcp__<server>__<tool>
+function splitClaudeToolName(name: string): { serverName: string; toolName: string } {
+  const rest = name.startsWith('mcp__') ? name.slice(5) : name
+  const sep = rest.indexOf('__')
+  return sep === -1 ? { serverName: 'claude', toolName: rest } : { serverName: rest.slice(0, sep), toolName: rest.slice(sep + 2) }
+}
+
+// Stateful: a tool_result only names its tool_use id, so calls are kept to
+// label the result
+export function createClaudeParser(): (e: CliEvent) => ParsedEvent | undefined {
+  const calls = new Map<string, Omit<ToolActivity, 'status'>>()
+  return (e) => {
+    // 'none' means the subscription login; anything else is an API key that
+    // would bill per token
+    if (e.type === 'system' && e.subtype === 'init' && e.apiKeySource && e.apiKeySource !== 'none') {
+      throw new Error(
+        `Claude Code is using an API key (${e.apiKeySource}), not your subscription — run \`claude auth login\` with your Claude account`
+      )
+    }
+    if (e.type === 'stream_event' && e.event?.type === 'content_block_delta' && e.event.delta?.type === 'text_delta') {
+      return { text: e.event.delta.text }
+    }
+    if (e.type === 'assistant') {
+      const tools = (e.message?.content ?? [])
+        .filter((b) => b.type === 'tool_use' && b.id)
+        .map((b) => {
+          const call = { callId: b.id!, ...splitClaudeToolName(b.name ?? ''), argsJson: JSON.stringify(b.input ?? {}) }
+          calls.set(call.callId, call)
+          return { ...call, status: 'running' as const }
+        })
+      return tools.length ? { tools } : undefined
+    }
+    if (e.type === 'user') {
+      const tools = (e.message?.content ?? [])
+        .filter((b) => b.type === 'tool_result' && calls.has(b.tool_use_id ?? ''))
+        .map((b) => ({
+          ...calls.get(b.tool_use_id!)!,
+          status: b.is_error ? ('error' as const) : ('ok' as const),
+          resultText: toolResultText(b.content)
+        }))
+      return tools.length ? { tools } : undefined
+    }
+    // The result repeats the streamed text — only its error flag matters
+    if (e.type === 'result') {
+      if (e.is_error) throw new Error(e.result || `Claude Code failed (${e.subtype ?? 'unknown error'})`)
+      return { done: true }
+    }
+    return undefined
   }
-  // The result repeats the streamed text — only its error flag matters
-  if (e.type === 'result') {
-    if (e.is_error) throw new Error(e.result || `Claude Code failed (${e.subtype ?? 'unknown error'})`)
-    return { done: true }
-  }
-  return undefined
 }
 
 // Codex wraps API errors as a JSON string inside the message
@@ -170,6 +247,23 @@ export function createCodexParser(): (e: CliEvent) => ParsedEvent | undefined {
   return (e) => {
     if (e.type === 'item.completed' && e.item?.type === 'agent_message' && e.item.text) {
       return { text: (messages++ ? '\n\n' : '') + e.item.text }
+    }
+    const it = e.item
+    if (it?.type === 'mcp_tool_call' && (e.type === 'item.started' || e.type === 'item.completed')) {
+      const failed = it.status === 'failed' || !!it.error
+      const errorText = typeof it.error === 'string' ? it.error : (it.error?.message ?? 'Tool call failed')
+      return {
+        tools: [
+          {
+            callId: it.id ?? '',
+            toolName: it.tool ?? '',
+            serverName: it.server ?? '',
+            argsJson: typeof it.arguments === 'string' ? it.arguments : JSON.stringify(it.arguments ?? {}),
+            status: e.type === 'item.started' ? 'running' : failed ? 'error' : 'ok',
+            resultText: e.type === 'item.started' ? undefined : failed ? errorText : toolResultText(it.result?.content)
+          }
+        ]
+      }
     }
     if (e.type === 'turn.completed') return { done: true }
     if (e.type === 'turn.failed') throw new Error(codexErrorMessage(e.error?.message))
@@ -223,8 +317,17 @@ function rejectTools(cli: string, model: string, options?: StreamChatOptions): v
   // Elrond's MCP tools can't be bridged into the CLI; the tool loop catches
   // this and answers without tools
   if (options?.tools?.length) {
-    throw new ToolsUnsupportedError(model, `${cli} subscription mode has no MCP tools`)
+    throw new ToolsUnsupportedError(
+      model,
+      `${cli} subscription agents can't use Elrond's MCP servers (choose ${cli} servers in Settings → Providers)`
+    )
   }
+}
+
+// Permission rule allowing every tool of one MCP server; Claude derives tool
+// prefixes from server names this way (e.g. "claude.ai Docs" → claude_ai_Docs)
+export function claudeServerRule(name: string): string {
+  return `mcp__${name.replace(/[^a-zA-Z0-9_-]/g, '_')}`
 }
 
 export class ClaudeCliProvider implements AgentProvider {
@@ -232,38 +335,93 @@ export class ClaudeCliProvider implements AgentProvider {
   // never leaks into API mode
   readonly name = 'claude-cli'
 
+  // The user's Claude Code MCP servers they opted into (none = isolated run)
+  constructor(private readonly mcpServers: () => string[] = () => []) {}
+
   async *streamChat(
     messages: ChatMessage[],
     model: string,
     credential: string,
     options?: StreamChatOptions
   ): AsyncIterable<StreamChunk> {
-    rejectTools('Claude Code', model, options)
+    const servers = options?.toolsAllowed ? this.mcpServers() : []
+    // Elrond's own MCP tools can't be bridged in; with opted-in CLI servers
+    // those stand in silently, otherwise the tool loop notes the fallback
+    if (servers.length === 0) rejectTools('Claude Code', model, options)
+    const isolation = servers.length
+      ? [
+          // User MCP servers need the user's config, so no --safe-mode — keep
+          // hooks and skills off instead, and run only the chosen servers'
+          // tools: headless, anything not pre-approved is refused
+          '--settings', '{"disableAllHooks":true}',
+          '--disable-slash-commands',
+          '--permission-mode', 'dontAsk',
+          '--allowedTools', servers.map(claudeServerRule).join(',')
+        ]
+      : [
+          // No user CLAUDE.md, hooks, plugins or MCP servers; auth still works
+          // (never --bare: it skips the subscription login entirely)
+          '--safe-mode',
+          '--strict-mcp-config'
+        ]
     const args = [
       '-p',
       '--input-format', 'stream-json',
       '--output-format', 'stream-json',
       '--verbose',
       '--include-partial-messages',
-      // No user CLAUDE.md, hooks, plugins or MCP servers; auth still works
-      // (never --bare: it skips the subscription login entirely)
-      '--safe-mode',
+      ...isolation,
       '--tools', '',
-      '--strict-mcp-config',
       '--no-session-persistence',
       '--model', model,
       '--system-prompt', CLAUDE_SYSTEM_PROMPT
     ]
+    const env = servers.length
+      ? {
+          CLAUDE_CODE_DISABLE_CLAUDE_MDS: '1',
+          CLAUDE_CODE_DISABLE_AUTO_MEMORY: '1',
+          // -p otherwise starts before slow servers connect and lacks their tools.
+          // ponytail: waits on all of the user's servers, not just the chosen
+          // ones — a per-server --mcp-config would need their full configs
+          CLAUDE_CODE_MCP_STARTUP_WAIT_MS: '15000'
+        }
+      : undefined
+    const parse = createClaudeParser()
     yield* toChunks(
-      runCli('claude', args, claudeInput(messages), credential, options?.signal),
-      parseClaudeEvent,
+      runCli('claude', args, claudeInput(messages), credential, options?.signal, env),
+      (event) => {
+        if (event.type === 'rate_limit_event') {
+          claudeUsage = parseClaudeUsage(event.rate_limit_info, Date.now()) ?? claudeUsage
+        }
+        return parse(event)
+      },
       'Claude Code'
     )
   }
 }
 
+// Codex flags that keep plugin and app (connector) servers out — shared by
+// runs and the server listing so both see the same set
+const CODEX_NO_PLUGINS = ['--disable', 'plugins', '--disable', 'apps']
+
+// Codex runs MCP tools without asking, so every server the user didn't pick
+// is switched off for the run. Fails closed: if the server list can't be
+// read, the run ignores the user's config (and with it all MCP servers).
+async function codexMcpArgs(selected: string[], path: string): Promise<string[]> {
+  const all = await listCodexMcpServers(path)
+  if (!all) return ['--ignore-user-config']
+  return [
+    ...all.filter((s) => !selected.includes(s.name)).flatMap((s) => ['-c', `mcp_servers.${s.name}.enabled=false`]),
+    // The user's config may run a program after every turn
+    '-c', 'notify=[]'
+  ]
+}
+
 export class CodexCliProvider implements AgentProvider {
   readonly name = 'codex-cli'
+
+  // The user's Codex MCP servers they opted into (none = isolated run)
+  constructor(private readonly mcpServers: () => string[] = () => []) {}
 
   async *streamChat(
     messages: ChatMessage[],
@@ -271,7 +429,9 @@ export class CodexCliProvider implements AgentProvider {
     credential: string,
     options?: StreamChatOptions
   ): AsyncIterable<StreamChunk> {
-    rejectTools('Codex', model, options)
+    const servers = options?.toolsAllowed ? this.mcpServers() : []
+    if (servers.length === 0) rejectTools('Codex', model, options)
+    const config = servers.length ? await codexMcpArgs(servers, credential) : ['--ignore-user-config']
     // Codex only takes images as files; uuids keep parallel calls apart
     const images = messages
       .flatMap(nonTextParts)
@@ -287,12 +447,11 @@ export class CodexCliProvider implements AgentProvider {
         '--json',
         '--ephemeral',
         '--skip-git-repo-check',
-        '--ignore-user-config',
+        ...config,
         '--ignore-rules',
         '--disable', 'shell_tool',
         '--disable', 'hooks',
-        '--disable', 'plugins',
-        '--disable', 'apps',
+        ...CODEX_NO_PLUGINS,
         // Refuse API-key auth at run time, and keep synthesis from pulling in
         // un-debated facts through web search (on by default)
         '-c', 'forced_login_method="chatgpt"',
@@ -322,13 +481,14 @@ export const CLAUDE_CLI_MODELS = ['sonnet', 'opus', 'haiku', 'fable']
 function execCli(
   cmd: string,
   args: string[],
-  path: string
+  path: string,
+  timeout = 10_000
 ): Promise<{ error: ExecFileException | null; output: string }> {
   return new Promise((resolve) => {
     execFile(
       cmd,
       args,
-      { cwd: getWorkDir(), env: cliEnv(path), timeout: 10_000, maxBuffer: 10 * 1024 * 1024 },
+      { cwd: getWorkDir(), env: cliEnv(path), timeout, maxBuffer: 10 * 1024 * 1024 },
       (error, stdout, stderr) => resolve({ error, output: `${stdout}\n${stderr}` })
     )
   })
@@ -376,4 +536,125 @@ export async function detectSubscription(
   if (!error && /chatgpt/i.test(output)) return { ok: true, detail: 'Logged in with ChatGPT' }
   if (!error) return { ok: false, detail: 'Codex is logged in with an API key — run `codex login` with your ChatGPT account' }
   return { ok: false, detail: 'Not logged in — run `codex login` in a terminal' }
+}
+
+// Plan usage — how much of each rate-limit window is used, as the CLIs report it
+
+const CLAUDE_WINDOW_MINUTES: Record<string, number> = { five_hour: 300, seven_day: 10080 }
+
+export function windowLabel(minutes: number | null | undefined, fallback = 'Limit'): string {
+  if (!minutes) return fallback
+  if (minutes === 10080) return 'Weekly'
+  if (minutes % 1440 === 0) return `${minutes / 1440}d`
+  if (minutes % 60 === 0) return `${minutes / 60}h`
+  return `${minutes}m`
+}
+
+// Claude Code has no usage command — it reports limits only as a
+// rate_limit_event during a run, so this is the reading from the last call
+let claudeUsage: SubscriptionUsage | null = null
+
+export function getClaudeUsage(): SubscriptionUsage | null {
+  return claudeUsage
+}
+
+// utilization is a 0–1 fraction; resetsAt is epoch seconds
+export function parseClaudeUsage(info: CliEvent['rate_limit_info'], now: number): SubscriptionUsage | null {
+  const windows: UsageWindow[] = Object.entries(info?.unifiedWindows ?? {}).map(([key, w]) => ({
+    label: windowLabel(CLAUDE_WINDOW_MINUTES[key], key.replace(/_/g, ' ')),
+    usedPercent: Math.round((w.utilization ?? 0) * 100),
+    resetsAt: w.resetsAt ? w.resetsAt * 1000 : null
+  }))
+  return windows.length ? { windows, checkedAt: now } : null
+}
+
+interface CodexWindow {
+  usedPercent: number
+  windowDurationMins?: number | null
+  resetsAt?: number | null
+}
+
+// Which windows exist depends on the plan (some have only a weekly one), so
+// labels come from each window's length; resetsAt is epoch seconds
+export function parseCodexUsage(
+  result: { rateLimits?: { primary?: CodexWindow | null; secondary?: CodexWindow | null } } | undefined,
+  now: number
+): SubscriptionUsage | null {
+  const limits = result?.rateLimits
+  const windows: UsageWindow[] = [limits?.primary, limits?.secondary]
+    .filter((w): w is CodexWindow => !!w)
+    .map((w) => ({
+      label: windowLabel(w.windowDurationMins),
+      usedPercent: w.usedPercent,
+      resetsAt: w.resetsAt ? w.resetsAt * 1000 : null
+    }))
+  return windows.length ? { windows, checkedAt: now } : null
+}
+
+// Codex reports limits without a model call through its app-server protocol
+// (JSON-RPC over stdio): initialize, then account/rateLimits/read.
+// ponytail: app-server is marked experimental — any failure resolves null and
+// just hides the usage block; deliberations never depend on it
+export function readCodexUsage(path: string): Promise<SubscriptionUsage | null> {
+  return new Promise((resolve) => {
+    const child = spawn('codex', ['app-server'], { cwd: getWorkDir(), env: cliEnv(path) })
+    const finish = (usage: SubscriptionUsage | null): void => {
+      clearTimeout(timer)
+      child.kill()
+      resolve(usage)
+    }
+    const timer = setTimeout(() => finish(null), 10_000)
+    const send = (message: object): void => {
+      child.stdin.write(JSON.stringify(message) + '\n')
+    }
+    child.on('error', () => finish(null))
+    child.on('close', () => finish(null))
+    child.stdin.on('error', () => {})
+    createInterface({ input: child.stdout }).on('line', (line) => {
+      let message: { id?: number; result?: unknown }
+      try {
+        message = JSON.parse(line)
+      } catch {
+        return
+      }
+      if (message.id === 1) {
+        send({ method: 'initialized' })
+        send({ id: 2, method: 'account/rateLimits/read', params: null })
+      } else if (message.id === 2) {
+        finish(parseCodexUsage(message.result as Parameters<typeof parseCodexUsage>[0], Date.now()))
+      }
+    })
+    send({ id: 1, method: 'initialize', params: { clientInfo: { name: 'elrond', version: '1.0' } } })
+  })
+}
+
+// MCP servers configured in the user's CLIs (for the opt-in picker)
+
+// `claude mcp list` prints "name: target - status" lines after a header
+export function parseClaudeMcpList(output: string): CliMcpServer[] {
+  return output.split('\n').flatMap((line) => {
+    const nameEnd = line.indexOf(': ')
+    const statusStart = line.lastIndexOf(' - ')
+    if (nameEnd <= 0 || statusStart <= nameEnd) return []
+    return [{ name: line.slice(0, nameEnd).trim(), status: line.slice(statusStart + 3).trim() }]
+  })
+}
+
+// Enabled servers from config.toml; null when the list can't be read
+async function listCodexMcpServers(path: string): Promise<CliMcpServer[] | null> {
+  const { error, output } = await execCli('codex', [...CODEX_NO_PLUGINS, 'mcp', 'list', '--json'], path)
+  if (error) return null
+  try {
+    const servers = JSON.parse(output.trim()) as { name: string; enabled?: boolean }[]
+    return servers.filter((s) => s.enabled !== false).map((s) => ({ name: s.name, status: '' }))
+  } catch {
+    return null
+  }
+}
+
+export async function listCliMcpServers(provider: SubscriptionProvider, path: string): Promise<CliMcpServer[]> {
+  if (provider === 'openai') return (await listCodexMcpServers(path)) ?? []
+  // Health-checks every server, so it's slow (~30s with many servers)
+  const { output } = await execCli('claude', ['mcp', 'list'], path, 90_000)
+  return parseClaudeMcpList(output)
 }

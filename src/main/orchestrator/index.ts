@@ -7,7 +7,7 @@ import { GoogleProvider } from './providers/google'
 import { OllamaProvider } from './providers/ollama'
 import { ClaudeCliProvider, CodexCliProvider } from './providers/cli'
 import { getApiKey } from '../keychain'
-import { getOllamaBaseUrl, usesSubscription } from '../agentStore'
+import { getCliMcpServers, getOllamaBaseUrl, usesSubscription } from '../agentStore'
 import { getShellPath } from '../mcp/shellEnv'
 import { getDb } from '../db'
 import { getRepoContext } from '../github'
@@ -35,8 +35,8 @@ async function resolveCredential(providerName: ProviderName): Promise<string> {
 
 const openai = new OpenAIProvider()
 const anthropic = new AnthropicProvider()
-const codexCli = new CodexCliProvider()
-const claudeCli = new ClaudeCliProvider()
+const codexCli = new CodexCliProvider(() => getCliMcpServers('openai'))
+const claudeCli = new ClaudeCliProvider(() => getCliMcpServers('anthropic'))
 
 const runner = createDeliberationRunner({
   getDb,

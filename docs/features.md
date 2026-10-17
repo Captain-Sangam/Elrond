@@ -26,14 +26,19 @@ Anthropic and OpenAI agents can run on your Claude (Pro/Max/Team) or ChatGPT (Pl
 - Elrond runs the vendor's own CLI for every call — `claude -p` (Claude Code) for Anthropic, `codex exec` (Codex CLI) for OpenAI — so the CLI authenticates with your existing login and refreshes its own tokens. Elrond never reads or stores subscription tokens
 - Setup is just installing the CLI and logging in once in a terminal (`claude`, `codex login`). Choosing Subscription detects the login automatically; the Agents dialog re-checks it on every open
 - Never falls back to API billing: API-key and endpoint environment variables are stripped from the CLI's environment, Codex is forced onto the ChatGPT login, and a Claude run that reports an API-key source fails with an error
-- Runs are isolated from your CLI setup: no CLAUDE.md, hooks, plugins or MCP servers (`--safe-mode`), no Codex `config.toml`, shell, hooks, plugins, apps or web search, and an empty working directory so no project AGENTS.md is found
+- Runs are isolated from your CLI setup by default: no CLAUDE.md, hooks, plugins or MCP servers (`--safe-mode`), no Codex `config.toml`, shell, hooks, plugins, apps or web search, and an empty working directory so no project AGENTS.md is found
+- **MCP servers from your CLI (opt-in):** under the provider's Subscription status, *Use Claude Code servers* / *Use Codex servers* lists the MCP servers configured in that CLI (`claude mcp list`, `codex mcp list`) with a checkbox each — nothing is checked by default. Checked servers' tools are available to that provider's agents in the initial and debate phases (never synthesis or the moderator, and not when the chat's MCP toggle is off), and their calls show as tool chips
+  - Headless runs can't show approval prompts, so checked servers' tools **run without asking** — leave servers that can change or delete things unchecked. Claude runs with `--permission-mode dontAsk` and pre-approves exactly the checked servers, so calls to anything else are refused; Codex switches every unchecked server off for the run (and fails closed — no MCP at all — if it can't list them)
+  - With servers on, Claude loads your user config with hooks, skills and CLAUDE.md kept off, and waits up to 15s per call for your MCP servers to start (it waits on all configured servers, not just the checked ones); Codex loads your `config.toml` with plugins, apps, hooks, the shell and `notify` kept off
+  - Listing Claude's servers health-checks each one (~30s); the list is cached until *Refresh list*
 - Model lists come from the CLI: Claude Code aliases (`sonnet`, `opus`, `haiku`, `fable` — always the latest model; full `claude-*` names also work) and the Codex model catalog
 - Switching modes moves agents off models the new backend can't run; the switch is disabled while a deliberation is running
 - Subscription calls cost $0 in the stats rail
+- **Plan usage** in the stats rail footer: each rate-limit window (e.g. 5h, Weekly) with percent used and time until reset. Codex limits are read on demand through `codex app-server` (no model call); Claude Code only reports limits during a run, so its numbers are from the last call ("as of" time) and appear after the first Claude run since launch. Refreshed when the panel opens, on a mode switch, and after each deliberation
 
 Limits:
 
-- No MCP tools — subscription agents answer without them (the same fallback as a model without tool support)
+- Elrond's own MCP servers (the MCP tab) don't reach subscription agents — only the CLI servers you opt into above; without any, agents answer without tools (the same fallback as a model without tool support)
 - Codex returns each answer as one complete message rather than streaming token by token
 - Codex can't read PDF attachments (the model is told the file was omitted); images work on both
 - Each call starts a CLI process, adding about a second or two

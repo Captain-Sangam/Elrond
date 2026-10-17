@@ -6,13 +6,20 @@ import {
   ClaudeCliProvider,
   CodexCliProvider,
   claudeInput,
+  claudeServerRule,
   codexPrompt,
   createCodexParser,
-  parseClaudeEvent,
+  getClaudeUsage,
+  createClaudeParser,
+  parseClaudeMcpList,
+  parseClaudeUsage,
+  parseCodexUsage,
+  readCodexUsage,
   toChunks,
+  windowLabel,
   type CliEvent
 } from './cli'
-import { ToolsUnsupportedError, type ChatMessage, type StreamChunk } from './types'
+import { ToolsUnsupportedError, type ChatMessage, type StreamChunk, type ToolActivity } from './types'
 
 // Trimmed from real runs of claude 2.1.295 and codex-cli 0.162.1
 const CLAUDE_OK = [
@@ -52,6 +59,12 @@ async function* events(list: CliEvent[]): AsyncIterable<CliEvent> {
   yield* list
 }
 
+async function activities(stream: AsyncIterable<StreamChunk>): Promise<ToolActivity[]> {
+  const found: ToolActivity[] = []
+  for await (const chunk of stream) if (chunk.type === 'tool_activity') found.push(chunk.activity)
+  return found
+}
+
 async function collect(stream: AsyncIterable<StreamChunk>): Promise<string> {
   let text = ''
   for await (const chunk of stream) if (chunk.type === 'text') text += chunk.delta
@@ -60,25 +73,102 @@ async function collect(stream: AsyncIterable<StreamChunk>): Promise<string> {
 
 describe('Claude stream-json events', () => {
   it('streams text deltas once, ignoring the repeated final text', async () => {
-    await expect(collect(toChunks(events(CLAUDE_OK), parseClaudeEvent, 'Claude Code'))).resolves.toBe('OK')
+    await expect(collect(toChunks(events(CLAUDE_OK), createClaudeParser(), 'Claude Code'))).resolves.toBe('OK')
   })
 
   it('throws the CLI message on an error result', async () => {
-    await expect(collect(toChunks(events([CLAUDE_BAD_MODEL]), parseClaudeEvent, 'Claude Code'))).rejects.toThrow(
+    await expect(collect(toChunks(events([CLAUDE_BAD_MODEL]), createClaudeParser(), 'Claude Code'))).rejects.toThrow(
       'issue with the selected model'
     )
   })
 
   it('refuses to run on an API key instead of the subscription', () => {
-    expect(() => parseClaudeEvent({ type: 'system', subtype: 'init', apiKeySource: 'ANTHROPIC_API_KEY' })).toThrow(
+    expect(() => createClaudeParser()({ type: 'system', subtype: 'init', apiKeySource: 'ANTHROPIC_API_KEY' })).toThrow(
       'not your subscription'
     )
   })
 
   it('treats a stream without a result as an unfinished answer', async () => {
-    await expect(collect(toChunks(events(CLAUDE_OK.slice(0, 4)), parseClaudeEvent, 'Claude Code'))).rejects.toThrow(
+    await expect(collect(toChunks(events(CLAUDE_OK.slice(0, 4)), createClaudeParser(), 'Claude Code'))).rejects.toThrow(
       'exited before finishing'
     )
+  })
+})
+
+describe('CLI tool calls', () => {
+  it('reports Claude MCP calls with their results', async () => {
+    // Shapes from a real claude -p run calling a Prometheus MCP tool
+    const run = [
+      {
+        type: 'assistant',
+        message: { content: [{ type: 'tool_use', id: 'toolu_1', name: 'mcp__prometheus-app-mcp-server__health_check', input: {} }] }
+      },
+      {
+        type: 'user',
+        message: { content: [{ type: 'tool_result', tool_use_id: 'toolu_1', content: [{ type: 'text', text: '{"status":"healthy"}' }] }] }
+      },
+      { type: 'result', subtype: 'success', is_error: false, result: 'Healthy' }
+    ]
+    expect(await activities(toChunks(events(run), createClaudeParser(), 'Claude Code'))).toEqual([
+      { callId: 'toolu_1', serverName: 'prometheus-app-mcp-server', toolName: 'health_check', argsJson: '{}', status: 'running' },
+      {
+        callId: 'toolu_1',
+        serverName: 'prometheus-app-mcp-server',
+        toolName: 'health_check',
+        argsJson: '{}',
+        status: 'ok',
+        resultText: '{"status":"healthy"}'
+      }
+    ])
+  })
+
+  it('reports a refused Claude call as an error', async () => {
+    const run = [
+      { type: 'assistant', message: { content: [{ type: 'tool_use', id: 't2', name: 'mcp__k8s__pods_delete', input: { name: 'x' } }] } },
+      { type: 'user', message: { content: [{ type: 'tool_result', tool_use_id: 't2', is_error: true, content: 'Claude requested permissions to use mcp__k8s__pods_delete, but you haven\'t granted it yet.' }] } },
+      { type: 'result', subtype: 'success', is_error: false, result: '' }
+    ]
+    const [, done] = await activities(toChunks(events(run), createClaudeParser(), 'Claude Code'))
+    expect(done).toMatchObject({ status: 'error', serverName: 'k8s', toolName: 'pods_delete', argsJson: '{"name":"x"}' })
+  })
+
+  it('reports Codex MCP calls with their results', async () => {
+    // Shapes from a real codex exec run
+    const item = { id: 'item_1', type: 'mcp_tool_call', server: 'prometheus-app-mcp-server', tool: 'health_check', arguments: '{}' }
+    const run = [
+      { type: 'item.started', item: { ...item, result: null, error: null, status: 'in_progress' } },
+      {
+        type: 'item.completed',
+        item: { ...item, result: { content: [{ type: 'text', text: '{"status":"healthy"}' }] }, error: null, status: 'completed' }
+      },
+      { type: 'turn.completed' }
+    ]
+    expect((await activities(toChunks(events(run), createCodexParser(), 'Codex'))).map((a) => [a.status, a.resultText])).toEqual([
+      ['running', undefined],
+      ['ok', '{"status":"healthy"}']
+    ])
+  })
+})
+
+describe('CLI MCP server listing', () => {
+  it('parses claude mcp list output', () => {
+    const output = [
+      'Checking MCP server health…',
+      '',
+      'claude.ai Claude Docs: https://mcp.example.com/docs - ✓ Connected',
+      'prometheus-app-mcp-server: /usr/local/bin/prom-mcp --stdio - ✓ Connected',
+      'linear: npx -y mcp-remote https://mcp.linear.app/sse - ! Needs authentication'
+    ].join('\n')
+    expect(parseClaudeMcpList(output)).toEqual([
+      { name: 'claude.ai Claude Docs', status: '✓ Connected' },
+      { name: 'prometheus-app-mcp-server', status: '✓ Connected' },
+      { name: 'linear', status: '! Needs authentication' }
+    ])
+  })
+
+  it('derives Claude permission rules from server names', () => {
+    expect(claudeServerRule('prometheus-app-mcp-server')).toBe('mcp__prometheus-app-mcp-server')
+    expect(claudeServerRule('claude.ai Claude Docs')).toBe('mcp__claude_ai_Claude_Docs')
   })
 })
 
@@ -190,6 +280,94 @@ describe('CLI providers with stand-in binaries', () => {
     await expect(collect(new ClaudeCliProvider().streamChat(HISTORY, 'sonnet', path))).rejects.toThrow('not logged in')
   })
 
+  it('records the plan usage claude reports during a run', async () => {
+    const path = fakeBin(
+      'claude',
+      [
+        'cat > /dev/null',
+        `echo '{"type":"rate_limit_event","rate_limit_info":{"unifiedWindows":{"five_hour":{"utilization":0.42,"resetsAt":1792278000}}}}'`,
+        `echo '{"type":"result","subtype":"success","is_error":false,"result":""}'`
+      ].join('\n')
+    )
+    await collect(new ClaudeCliProvider().streamChat(HISTORY, 'sonnet', path))
+    expect(getClaudeUsage()?.windows).toEqual([{ label: '5h', usedPercent: 42, resetsAt: 1792278000_000 }])
+  })
+
+  it('reads codex limits over the app-server protocol', async () => {
+    // Answers initialize, then the rate-limit read, like codex app-server
+    const path = fakeBin(
+      'codex',
+      [
+        'while read -r line; do',
+        '  case "$line" in',
+        `    *'"id":1'*) echo '{"id":1,"result":{}}' ;;`,
+        `    *'account/rateLimits/read'*) echo '{"id":2,"result":{"rateLimits":{"primary":{"usedPercent":10,"windowDurationMins":10080,"resetsAt":1792656037},"secondary":null}}}' ;;`,
+        '  esac',
+        'done'
+      ].join('\n')
+    )
+    const usage = await readCodexUsage(path)
+    expect(usage?.windows).toEqual([{ label: 'Weekly', usedPercent: 10, resetsAt: 1792656037_000 }])
+  })
+
+  it('resolves null when codex cannot report limits', async () => {
+    await expect(readCodexUsage(fakeBin('codex', 'exit 1'))).resolves.toBeNull()
+  })
+
+  // A stand-in that records its argv and environment, then finishes cleanly
+  function recordingBin(name: string, done: string, extra = ''): { path: string; args: () => string[]; env: () => string } {
+    const dir = mkdtempSync(join(tmpdir(), 'elrond-rec-'))
+    const path = fakeBin(
+      name,
+      [extra, 'cat > /dev/null', `printf '%s\\n' "$@" > ${dir}/args`, `env > ${dir}/env`, `echo '${done}'`].join('\n')
+    )
+    return {
+      path,
+      args: () => readFileSync(join(dir, 'args'), 'utf8').trimEnd().split('\n'),
+      env: () => readFileSync(join(dir, 'env'), 'utf8')
+    }
+  }
+  const CLAUDE_DONE = '{"type":"result","subtype":"success","is_error":false,"result":""}'
+
+  it('runs claude isolated unless the user opted into CLI MCP servers', async () => {
+    const bin = recordingBin('claude', CLAUDE_DONE)
+    await collect(new ClaudeCliProvider(() => ['srv-a']).streamChat(HISTORY, 'sonnet', bin.path, { toolsAllowed: false }))
+    expect(bin.args()).toContain('--safe-mode')
+    expect(bin.args()).not.toContain('--allowedTools')
+  })
+
+  it('gives claude only the opted-in servers, pre-approved, with hooks and CLAUDE.md off', async () => {
+    const bin = recordingBin('claude', CLAUDE_DONE)
+    const provider = new ClaudeCliProvider(() => ['srv-a', 'claude.ai Docs'])
+    // Elrond's own tools are ignored rather than rejected when CLI servers stand in
+    await collect(provider.streamChat(HISTORY, 'sonnet', bin.path, { toolsAllowed: true, tools: [{ name: 't', description: '', inputSchema: {} }] }))
+    const args = bin.args()
+    expect(args).not.toContain('--safe-mode')
+    expect(args[args.indexOf('--allowedTools') + 1]).toBe('mcp__srv-a,mcp__claude_ai_Docs')
+    expect(args[args.indexOf('--permission-mode') + 1]).toBe('dontAsk')
+    expect(args[args.indexOf('--settings') + 1]).toBe('{"disableAllHooks":true}')
+    expect(bin.env()).toContain('CLAUDE_CODE_DISABLE_CLAUDE_MDS=1')
+  })
+
+  it('switches off every codex server the user did not pick', async () => {
+    const list = `[ "$1" = "--disable" ] && [ "$5" = "mcp" ] && { echo '[{"name":"keep","enabled":true},{"name":"drop","enabled":true}]'; exit 0; }`
+    const bin = recordingBin('codex', '{"type":"turn.completed"}', list)
+    await collect(new CodexCliProvider(() => ['keep']).streamChat(HISTORY, 'gpt-5.6-sol', bin.path, { toolsAllowed: true }))
+    const args = bin.args()
+    expect(args).not.toContain('--ignore-user-config')
+    expect(args).toContain('mcp_servers.drop.enabled=false')
+    expect(args).not.toContain('mcp_servers.keep.enabled=false')
+    expect(args).toContain('notify=[]')
+  })
+
+  it('fails closed when codex cannot list its servers', async () => {
+    const list = `[ "$5" = "mcp" ] && exit 1`
+    const bin = recordingBin('codex', '{"type":"turn.completed"}', list)
+    await collect(new CodexCliProvider(() => ['keep']).streamChat(HISTORY, 'gpt-5.6-sol', bin.path, { toolsAllowed: true }))
+    expect(bin.args()).toContain('--ignore-user-config')
+    expect(bin.args().some((a) => a.startsWith('mcp_servers.'))).toBe(false)
+  })
+
   it('passes images to codex as files and removes them afterwards', async () => {
     // Echo back the -i path and the bytes it points to
     const path = fakeBin(
@@ -206,5 +384,47 @@ describe('CLI providers with stand-in binaries', () => {
     expect(file).toMatch(/\.png$/)
     expect(bytes).toBe('img')
     expect(() => readFileSync(file)).toThrow()
+  })
+})
+
+describe('plan usage parsing', () => {
+  it('labels windows by length', () => {
+    expect(windowLabel(300)).toBe('5h')
+    expect(windowLabel(10080)).toBe('Weekly')
+    expect(windowLabel(1440)).toBe('1d')
+    expect(windowLabel(null)).toBe('Limit')
+  })
+
+  it('converts Claude utilization fractions and reset seconds', () => {
+    // Recorded from a claude 2.1.295 rate_limit_event
+    const info = {
+      unifiedWindows: {
+        five_hour: { utilization: 0.01, resetsAt: 1792278000 },
+        seven_day: { utilization: 0.05, resetsAt: 1792782000 }
+      }
+    }
+    expect(parseClaudeUsage(info, 123)).toEqual({
+      checkedAt: 123,
+      windows: [
+        { label: '5h', usedPercent: 1, resetsAt: 1792278000_000 },
+        { label: 'Weekly', usedPercent: 5, resetsAt: 1792782000_000 }
+      ]
+    })
+    expect(parseClaudeUsage({}, 123)).toBeNull()
+  })
+
+  it('reads whichever Codex windows the plan has', () => {
+    const result = {
+      rateLimits: {
+        primary: { usedPercent: 37, windowDurationMins: 300, resetsAt: 1792278000 },
+        secondary: { usedPercent: 12, windowDurationMins: 10080, resetsAt: null }
+      }
+    }
+    expect(parseCodexUsage(result, 1)?.windows).toEqual([
+      { label: '5h', usedPercent: 37, resetsAt: 1792278000_000 },
+      { label: 'Weekly', usedPercent: 12, resetsAt: null }
+    ])
+    expect(parseCodexUsage({ rateLimits: { primary: null, secondary: null } }, 1)).toBeNull()
+    expect(parseCodexUsage(undefined, 1)).toBeNull()
   })
 })

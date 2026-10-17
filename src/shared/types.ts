@@ -115,6 +115,24 @@ export interface SubscriptionStatus {
   detail: string
 }
 
+// One rate-limit window of a subscription plan (e.g. 5h, Weekly)
+export interface UsageWindow {
+  label: string
+  usedPercent: number // 0–100
+  resetsAt: number | null // epoch ms
+}
+
+// An MCP server configured in the user's claude / codex CLI
+export interface CliMcpServer {
+  name: string
+  status: string // e.g. "✓ Connected" (Claude); empty when the CLI doesn't report one
+}
+
+export interface SubscriptionUsage {
+  windows: UsageWindow[]
+  checkedAt: number // epoch ms the CLI reported these numbers
+}
+
 // A named deliberation slot. Agents are decoupled from providers: several
 // agents may share a provider (e.g. two different Ollama models debating).
 export interface AgentConfig {
@@ -330,6 +348,12 @@ export interface ElrondAPI {
   testOllamaConnection: (baseUrl: string) => Promise<boolean>
   // Whether the provider's CLI is installed and logged in to a subscription
   detectSubscription: (provider: SubscriptionProvider) => Promise<SubscriptionStatus>
+  // Plan limits used so far; null when unknown (Claude reports them only
+  // during a run, so this is the last run's reading)
+  getSubscriptionUsage: (provider: SubscriptionProvider) => Promise<SubscriptionUsage | null>
+  // MCP servers configured in the provider's CLI; cached per app run unless
+  // refresh is set (listing Claude's health-checks every server, ~30s)
+  listCliMcpServers: (provider: SubscriptionProvider, refresh?: boolean) => Promise<CliMcpServer[]>
 
   // Agents
   getAgents: () => Promise<AgentConfig[]>

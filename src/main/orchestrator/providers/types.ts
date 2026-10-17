@@ -50,10 +50,26 @@ export type StreamChunk =
   | { type: 'text'; delta: string }
   // Emitted once per call, after its arguments JSON has fully streamed
   | { type: 'tool_call'; call: ToolCall }
+  // A tool call the provider ran itself (subscription CLIs with their own
+  // MCP servers) — reported for display only, never executed by the tool loop
+  | { type: 'tool_activity'; activity: ToolActivity }
+
+export interface ToolActivity {
+  callId: string
+  toolName: string
+  serverName: string
+  status: 'running' | 'ok' | 'error'
+  argsJson: string
+  resultText?: string
+}
 
 export interface StreamChatOptions {
   signal?: AbortSignal
   tools?: ToolDefinition[]
+  // Whether this call may use tools at all — false for synthesis and the
+  // moderator, or when the user switched tools off for the chat. Providers
+  // with their own tools (subscription CLIs) honour it.
+  toolsAllowed?: boolean
 }
 
 // Thrown when a model rejects the tools parameter outright — the caller
