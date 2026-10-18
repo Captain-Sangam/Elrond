@@ -14,7 +14,7 @@ You → Prompt → [Agent 1, Agent 2, … Agent N]
                   Synthesis → Answer
 ```
 
-Each agent is a named slot assigned a provider + model in the Agents dialog. Providers are OpenAI, Anthropic, Google (cloud, keyed) and Ollama (local, keyless). Several agents can share a provider — e.g. two different Ollama models debating each other.
+Each agent is a named slot assigned a provider + model in the Agents dialog. Providers are OpenAI, Anthropic, Google (cloud, keyed) and Ollama (local, keyless). OpenAI and Anthropic can instead run on the user's ChatGPT / Claude subscription: the orchestrator then runs the installed `codex` / `claude` CLI headless for each call (`providers/cli.ts`), chosen per provider by the `openai_auth` / `anthropic_auth` setting. Several agents can share a provider — e.g. two different Ollama models debating each other.
 
 1. **Fan-Out** — Your prompt (with any attached images/PDFs, repo context, and web search results) is sent to all enabled agents in parallel
 2. **Initial Responses** — Each agent's answer streams into its own panel
@@ -141,7 +141,8 @@ variable subsets, OFL-1.1) because Gothic names them in its tokens but ships no
 All data stays local:
 
 - **Database**: `~/Library/Application Support/Elrond/elrond.db` (SQLite)
-- **API Keys**: macOS Keychain under `com.elrond.app`
+- **API Keys**: macOS Keychain under `com.elrond.app` (subscription mode stores none; the CLI keeps its own login)
+- **Subscription settings**: `anthropic_auth` / `openai_auth` (`api` | `subscription`) and `anthropic_cli_mcp` / `openai_cli_mcp` (JSON array of opted-in CLI MCP server names) in the SQLite settings table
 - **Cloned Repos**: `~/Library/Application Support/Elrond/repos/`
 - **Attachments**: `~/Library/Application Support/Elrond/attachments/`
 
@@ -170,7 +171,7 @@ A repo enters scope via the `/github` selector, the session's attached repo, or 
 
 ### MCP tools (native function calling)
 
-Servers connected in Settings → MCP expose their tools to every agent through each provider's native function-calling API (OpenAI/Ollama `tool_calls`, Anthropic `tool_use`, Gemini `functionCall`).
+Servers connected in Settings → MCP expose their tools to every API-key and Ollama agent through each provider's native function-calling API (OpenAI/Ollama `tool_calls`, Anthropic `tool_use`, Gemini `functionCall`).
 
 - **Connection lifecycle** (`src/main/mcp/manager.ts`): enabled servers connect eagerly at app start and on toggle, cache their tool lists, push status changes to the renderer, and reconnect with capped backoff. Stdio servers spawn as child processes with the user's login-shell PATH (so `npx` works in packaged builds); HTTP servers use the Streamable HTTP transport with configurable headers.
 - **The loop** (`src/main/orchestrator/toolLoop.ts`): each agent streams, the loop executes any tool calls against the MCP manager, appends the results as tool messages, and re-streams — up to 8 iterations, with the final iteration forced tool-free so the model must answer. Tool names are namespaced per server (`linear__list_issues`); results are truncated to ~16k chars; every failure is fed back to the model as a tool-error message rather than aborting the turn.

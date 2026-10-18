@@ -76,7 +76,7 @@ Limits:
 
 ## MCP Tools
 
-- Connect [Model Context Protocol](https://modelcontextprotocol.io) servers in Settings → MCP; agents call their tools natively mid-deliberation (all four providers, including tool-capable Ollama models)
+- Connect [Model Context Protocol](https://modelcontextprotocol.io) servers in Settings → MCP; agents call their tools natively mid-deliberation (all four providers, including tool-capable Ollama models). Subscription agents can't use these — they use MCP servers you opt into from their CLI setup ([Subscription Login](#subscription-login))
 - Six presets ship out of the box: **Linear**, **Notion**, **GitHub**, **Sentry**, **Context7** (library docs), and **Filesystem** (local folders you pick)
 - Linear, Notion, and Sentry authenticate via browser OAuth on first connect (through the `mcp-remote` bridge — requires `npx`); GitHub and Context7 take an API key; Filesystem needs no auth
 - Custom servers: any stdio command or Streamable HTTP endpoint, with env vars / headers — values marked "Secret" are stored in the macOS Keychain, never in the database
@@ -98,7 +98,7 @@ Limits:
 
 - macOS-native window with hidden titlebar and traffic lights
 - Session sidebar with search, starring, rename, delete
-- Live stats rail (toggle in the top bar): pinned session totals (tokens, in/out split, cost, total time), a full card per turn with phase-by-phase breakdown on the live turn, consensus outcomes, and an all-sessions turn counter — turns stack instead of resetting on follow-up questions
+- Live stats rail (toggle in the top bar): pinned session totals (tokens, in/out split, cost, total time), a full card per turn with phase-by-phase breakdown on the live turn, consensus outcomes, and an all-sessions turn counter — turns stack instead of resetting on follow-up questions. Providers on a subscription add a plan-usage footer (percent used and time to reset per limit window)
 - Scroll freely while agents stream — auto-follow only when pinned to the bottom, with a jump-to-bottom button
 - Collapsible debate rounds with per-round moderator verdicts
 - Syntax-highlighted code blocks (themed from the active Astryx theme's syntax tokens) with copy buttons
