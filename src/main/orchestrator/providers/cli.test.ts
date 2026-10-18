@@ -18,6 +18,7 @@ import {
   parseCodexUsage,
   readCodexUsage,
   toChunks,
+  unselectedMcpPreApprovals,
   windowLabel,
   type CliEvent
 } from './cli'
@@ -148,6 +149,24 @@ describe('CLI tool calls', () => {
     expect((await activities(toChunks(events(run), createCodexParser(), 'Codex'))).map((a) => [a.status, a.resultText])).toEqual([
       ['running', undefined],
       ['ok', '{"status":"healthy"}']
+    ])
+  })
+})
+
+describe('Claude pre-approved MCP rules', () => {
+  it('returns allow rules for servers the user did not select, so they can be denied', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'elrond-settings-'))
+    const user = join(dir, 'settings.json')
+    writeFileSync(
+      user,
+      JSON.stringify({
+        env: { SECRET: 'x' },
+        permissions: { allow: ['mcp__keep', 'mcp__keep__query', 'mcp__k8s__pods_delete', 'mcp__keep-extra', 'Bash(ls)'] }
+      })
+    )
+    expect(unselectedMcpPreApprovals(['mcp__keep'], [user, join(dir, 'missing.json')])).toEqual([
+      'mcp__k8s__pods_delete',
+      'mcp__keep-extra'
     ])
   })
 })
@@ -360,6 +379,15 @@ describe('CLI providers with stand-in binaries', () => {
     expect(args).toContain('mcp_servers.drop.enabled=false')
     expect(args).not.toContain('mcp_servers.keep.enabled=false')
     expect(args).toContain('notify=[]')
+    expect(args).toContain('model_provider="openai"')
+  })
+
+  it('drops codex MCP servers when an unselected name cannot be switched off', async () => {
+    const list = `[ "$5" = "mcp" ] && { echo '[{"name":"keep","enabled":true},{"name":"a.b","enabled":true}]'; exit 0; }`
+    const bin = recordingBin('codex', '{"type":"turn.completed"}', list)
+    await collect(new CodexCliProvider(() => ['keep']).streamChat(HISTORY, 'gpt-5.6-sol', bin.path, { toolsAllowed: true }))
+    expect(bin.args()).toContain('--ignore-user-config')
+    expect(bin.args().some((a) => a.startsWith('mcp_servers.'))).toBe(false)
   })
 
   it('fails closed when codex cannot list its servers', async () => {

@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { useAgentsStore } from '@renderer/stores/agentsStore'
 import { Button } from '@renderer/components/ui/button'
@@ -44,6 +44,8 @@ export function SetupWizard(): React.JSX.Element {
     google: []
   })
   const [modelsLoading, setModelsLoading] = useState(false)
+  // Keys that passed their test — still valid after a detour to Subscription
+  const testedKeys = useRef(new Set<CloudProvider>())
   const { ollamaStatus, ollamaModels, testOllama } = useAgentsStore()
 
   useEffect(() => {
@@ -100,8 +102,10 @@ export function SetupWizard(): React.JSX.Element {
     const valid = await window.elrond.testApiKey(provider, key)
     if (valid) {
       await window.elrond.setApiKey(provider, key)
+      testedKeys.current.add(provider)
       setKeyStatus((prev) => ({ ...prev, [provider]: 'valid' }))
     } else {
+      testedKeys.current.delete(provider)
       setKeyStatus((prev) => ({ ...prev, [provider]: 'invalid' }))
     }
   }, [apiKeys])
@@ -262,9 +266,10 @@ export function SetupWizard(): React.JSX.Element {
                 ) : (
                   <SubscriptionAuth
                     provider={name}
-                    onReadyChange={(ready) =>
-                      setKeyStatus((prev) => ({ ...prev, [name]: ready ? 'valid' : 'idle' }))
-                    }
+                    onReadyChange={(ready, mode) => {
+                      const keyStillValid = mode === 'api' && testedKeys.current.has(name)
+                      setKeyStatus((prev) => ({ ...prev, [name]: ready || keyStillValid ? 'valid' : 'idle' }))
+                    }}
                   >
                     {keyInput(name, placeholder)}
                   </SubscriptionAuth>

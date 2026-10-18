@@ -1,5 +1,7 @@
 # Subscription login for Anthropic and OpenAI agents
 
+> **Superseded in part.** This plan shipped as commit `08649e3`. The user later asked for an opt-in to MCP servers from their own Claude Code / Codex setup, so the "No MCP bridge" decision and the out-of-scope MCP items below no longer describe the app; see [docs/features.md](../../docs/features.md#subscription-login). The safety decisions still stand: no token reading, no fallback to API billing, API key mode as the default, never `--bare`.
+
 ## Outcome
 **Task:** let Elrond's Anthropic and OpenAI agents run on the user's Claude (Pro/Max) or ChatGPT (Plus/Pro) subscription instead of a pay-per-token API key. The user chooses "API key" or "Subscription" per provider during setup, and Elrond finds the existing local login by itself.
 

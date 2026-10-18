@@ -119,13 +119,15 @@ export class YourProvider implements AgentProvider {
     // credential is the API key for cloud providers. Keyless local providers
     // receive their server base URL here instead (see ollama.ts).
     //
-    // options carries { signal, tools }. Yield { type: 'text', delta } for
+    // options carries { signal, tools, toolsAllowed }. Yield { type: 'text', delta } for
     // text chunks. If the provider supports function calling, pass
     // options.tools through in its native format and yield
     // { type: 'tool_call', call: { id, name, argsJson } } once per completed
     // call (see openai.ts for the delta-assembly pattern). Messages may
     // include role 'tool' results and assistant turns with toolCalls —
-    // serialize both to the provider's native shape.
+    // serialize both to the provider's native shape. A provider that runs
+    // tools itself (cli.ts) instead honours options.toolsAllowed and yields
+    // { type: 'tool_activity', activity } per call, for display only.
   }
 }
 

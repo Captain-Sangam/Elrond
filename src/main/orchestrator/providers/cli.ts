@@ -1,6 +1,6 @@
 import { execFile, spawn, type ExecFileException } from 'child_process'
-import { mkdtempSync, rmSync, writeFileSync } from 'fs'
-import { tmpdir } from 'os'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'fs'
+import { homedir, tmpdir } from 'os'
 import { join } from 'path'
 import { createInterface } from 'readline'
 import { v4 as uuidv4 } from 'uuid'
@@ -330,6 +330,29 @@ export function claudeServerRule(name: string): string {
   return `mcp__${name.replace(/[^a-zA-Z0-9_-]/g, '_')}`
 }
 
+// Where Claude Code reads permission rules for a run in an empty directory:
+// the user's settings and macOS managed (enterprise) settings
+const CLAUDE_SETTINGS_FILES = [
+  join(process.env.CLAUDE_CONFIG_DIR ?? join(homedir(), '.claude'), 'settings.json'),
+  '/Library/Application Support/ClaudeCode/managed-settings.json'
+]
+
+// dontAsk still honours permissions.allow, so an MCP rule the user already
+// pre-approved in Claude Code would let an unselected server run. Returns
+// those rules so they can be denied (deny beats allow). Reads nothing but
+// permissions.allow — settings can carry an env block with keys.
+export function unselectedMcpPreApprovals(selectedRules: string[], files = CLAUDE_SETTINGS_FILES): string[] {
+  const rules = files.flatMap((file) => {
+    try {
+      const allow = JSON.parse(readFileSync(file, 'utf8'))?.permissions?.allow
+      return Array.isArray(allow) ? allow.filter((r): r is string => typeof r === 'string' && r.startsWith('mcp__')) : []
+    } catch {
+      return [] // missing or unreadable — no rules
+    }
+  })
+  return rules.filter((rule) => !selectedRules.some((s) => rule === s || rule.startsWith(`${s}__`)))
+}
+
 export class ClaudeCliProvider implements AgentProvider {
   // Distinct from 'anthropic' so the tool loop's tools-unsupported cache
   // never leaks into API mode
@@ -348,6 +371,8 @@ export class ClaudeCliProvider implements AgentProvider {
     // Elrond's own MCP tools can't be bridged in; with opted-in CLI servers
     // those stand in silently, otherwise the tool loop notes the fallback
     if (servers.length === 0) rejectTools('Claude Code', model, options)
+    const allowed = servers.map(claudeServerRule)
+    const denied = servers.length ? unselectedMcpPreApprovals(allowed) : []
     const isolation = servers.length
       ? [
           // User MCP servers need the user's config, so no --safe-mode — keep
@@ -356,7 +381,8 @@ export class ClaudeCliProvider implements AgentProvider {
           '--settings', '{"disableAllHooks":true}',
           '--disable-slash-commands',
           '--permission-mode', 'dontAsk',
-          '--allowedTools', servers.map(claudeServerRule).join(',')
+          '--allowedTools', allowed.join(','),
+          ...(denied.length ? ['--disallowedTools', denied.join(',')] : [])
         ]
       : [
           // No user CLAUDE.md, hooks, plugins or MCP servers; auth still works
@@ -410,9 +436,15 @@ const CODEX_NO_PLUGINS = ['--disable', 'plugins', '--disable', 'apps']
 async function codexMcpArgs(selected: string[], path: string): Promise<string[]> {
   const all = await listCodexMcpServers(path)
   if (!all) return ['--ignore-user-config']
+  const unselected = all.filter((s) => !selected.includes(s.name))
+  // -c takes a dotted path and doesn't parse quoted keys, so a name like
+  // "a.b" can't be switched off (codex then fails to load its config)
+  if (unselected.some((s) => !/^[\w-]+$/.test(s.name))) return ['--ignore-user-config']
   return [
-    ...all.filter((s) => !selected.includes(s.name)).flatMap((s) => ['-c', `mcp_servers.${s.name}.enabled=false`]),
-    // The user's config may run a program after every turn
+    ...unselected.flatMap((s) => ['-c', `mcp_servers.${s.name}.enabled=false`]),
+    // The user's config may route calls to a custom (API-billed) provider
+    '-c', 'model_provider="openai"',
+    // ...or run a program after every turn
     '-c', 'notify=[]'
   ]
 }
