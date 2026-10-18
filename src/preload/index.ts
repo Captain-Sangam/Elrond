@@ -24,6 +24,7 @@ const api: ElrondAPI = {
   detectSubscription: (provider) => ipcRenderer.invoke('subscription:detect', provider),
   getSubscriptionUsage: (provider) => ipcRenderer.invoke('subscription:usage', provider),
   listCliMcpServers: (provider, refresh?) => ipcRenderer.invoke('subscription:mcpServers', provider, refresh),
+  checkCliMcpServer: (provider, name) => ipcRenderer.invoke('subscription:mcpCheck', provider, name),
 
   // Agents
   getAgents: () => ipcRenderer.invoke('agents:list'),

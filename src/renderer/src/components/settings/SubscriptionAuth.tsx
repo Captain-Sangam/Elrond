@@ -6,7 +6,7 @@ import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from '@renderer/components/ui/dialog'
 import { keepsModelAfterSwitch } from '@renderer/lib/providers'
-import { AlertTriangle, Check, ChevronRight, Loader2, X } from 'lucide-react'
+import { AlertTriangle, Check, ChevronRight, Loader2, RefreshCw, X } from 'lucide-react'
 import type { AuthMode, CliMcpServer, SubscriptionProvider, SubscriptionStatus } from '@shared/types'
 
 const CLI_NAMES: Record<SubscriptionProvider, string> = {
@@ -181,6 +181,7 @@ function CliMcpDialog({
   const [servers, setServers] = useState<CliMcpServer[] | null>(null)
   const [loading, setLoading] = useState(false)
   const [filter, setFilter] = useState('')
+  const [checking, setChecking] = useState<string[]>([])
 
   const load = useCallback(
     async (refresh = false) => {
@@ -194,6 +195,17 @@ function CliMcpDialog({
   useEffect(() => {
     if (open && servers === null) load()
   }, [open, servers, load])
+
+  const check = useCallback(
+    async (name: string) => {
+      setChecking((prev) => [...prev, name])
+      const server = await window.elrond.checkCliMcpServer(provider, name).catch(() => null)
+      if (server) setServers((prev) => prev?.map((s) => (s.name === name ? server : s)) ?? prev)
+      setChecking((prev) => prev.filter((n) => n !== name))
+    },
+    [provider]
+  )
+  const needsAuth = (servers ?? []).some((s) => statusBadge(s.status)?.label === 'Needs auth')
 
   const listed = servers ?? []
   const matches = (name: string): boolean => name.toLowerCase().includes(filter.trim().toLowerCase())
@@ -238,6 +250,8 @@ function CliMcpDialog({
               servers={available}
               icon={<ChevronRight className="h-3 w-3 shrink-0 text-muted-foreground" />}
               onPick={(name) => onChange([...selected, name])}
+              onCheck={check}
+              checking={checking}
             />
             <ServerColumn
               title="Selected"
@@ -246,15 +260,33 @@ function CliMcpDialog({
               servers={chosen}
               icon={<X className="h-3 w-3 shrink-0 text-muted-foreground" />}
               onPick={(name) => onChange(selected.filter((n) => n !== name))}
+              onCheck={check}
+              checking={checking}
             />
           </div>
+          {needsAuth && (
+            <p className="text-[11px] text-muted-foreground">
+              Servers marked Needs auth sign in through the CLI —{' '}
+              {provider === 'anthropic' ? (
+                <>
+                  run <span className="font-mono">claude</span> in a terminal and use{' '}
+                  <span className="font-mono">/mcp</span>
+                </>
+              ) : (
+                <>
+                  run <span className="font-mono">codex mcp login &lt;name&gt;</span>
+                </>
+              )}
+              , then re-check them here.
+            </p>
+          )}
           <div className="flex items-center justify-between">
             <button
               onClick={() => load(true)}
               disabled={loading}
               className="text-xs text-primary underline decoration-primary/30 underline-offset-2 disabled:opacity-50"
             >
-              Refresh list
+              Re-check all
             </button>
             <Button size="sm" className="h-8" onClick={() => onOpenChange(false)}>
               Done
@@ -284,7 +316,9 @@ function ServerColumn({
   empty,
   servers,
   icon,
-  onPick
+  onPick,
+  onCheck,
+  checking
 }: {
   title: string
   count: number
@@ -294,6 +328,8 @@ function ServerColumn({
   servers: CliMcpServer[]
   icon: React.ReactNode
   onPick: (name: string) => void
+  onCheck: (name: string) => void
+  checking: string[]
 }): React.JSX.Element {
   return (
     <div className="flex flex-col rounded-md border">
@@ -312,18 +348,40 @@ function ServerColumn({
         ) : (
           servers.map((server) => {
             const badge = statusBadge(server.status)
+            const isChecking = checking.includes(server.name)
             return (
-              <button
-                key={server.name}
-                onClick={() => onPick(server.name)}
-                title={server.status ? `${server.name} — ${server.status}` : server.name}
-                className="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-[11px] hover:bg-muted"
-              >
-                <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${badge?.dot ?? 'bg-transparent'}`} />
-                <span className="min-w-0 flex-1 truncate font-mono">{server.name}</span>
-                {badge && <span className={`shrink-0 ${badge.text}`}>{badge.label}</span>}
-                {icon}
-              </button>
+              <div key={server.name} className="flex items-center rounded hover:bg-muted">
+                <button
+                  onClick={() => onPick(server.name)}
+                  title={server.status ? `${server.name} — ${server.status}` : server.name}
+                  className="flex min-w-0 flex-1 items-center gap-2 py-1.5 pl-2 text-left text-[11px]"
+                >
+                  <span className={`h-1.5 w-1.5 shrink-0 rounded-full ${badge?.dot ?? 'bg-transparent'}`} />
+                  <span className="min-w-0 flex-1 truncate font-mono">{server.name}</span>
+                  {badge && <span className={`shrink-0 ${badge.text}`}>{isChecking ? 'Checking…' : badge.label}</span>}
+                </button>
+                {/* Only servers that aren't connected need a re-check */}
+                {badge && badge.label !== 'Connected' ? (
+                  <button
+                    onClick={() => onCheck(server.name)}
+                    disabled={isChecking}
+                    title="Re-check this server"
+                    className="shrink-0 px-1.5 py-1.5 text-muted-foreground hover:text-foreground disabled:opacity-50"
+                  >
+                    <RefreshCw className={`h-3 w-3 ${isChecking ? 'animate-spin' : ''}`} />
+                  </button>
+                ) : (
+                  <span className="w-6 shrink-0" />
+                )}
+                <button
+                  onClick={() => onPick(server.name)}
+                  tabIndex={-1}
+                  aria-hidden
+                  className="shrink-0 py-1.5 pr-2"
+                >
+                  {icon}
+                </button>
+              </div>
             )
           })
         )}

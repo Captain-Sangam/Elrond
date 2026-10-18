@@ -3,6 +3,7 @@ import { tmpdir } from 'os'
 import { join } from 'path'
 import { afterEach, describe, expect, it } from 'vitest'
 import {
+  checkCliMcpServer,
   ClaudeCliProvider,
   CodexCliProvider,
   claudeInput,
@@ -10,6 +11,7 @@ import {
   codexPrompt,
   createCodexParser,
   getClaudeUsage,
+  listCliMcpServers,
   createClaudeParser,
   parseClaudeMcpList,
   parseClaudeUsage,
@@ -366,6 +368,28 @@ describe('CLI providers with stand-in binaries', () => {
     await collect(new CodexCliProvider(() => ['keep']).streamChat(HISTORY, 'gpt-5.6-sol', bin.path, { toolsAllowed: true }))
     expect(bin.args()).toContain('--ignore-user-config')
     expect(bin.args().some((a) => a.startsWith('mcp_servers.'))).toBe(false)
+  })
+
+  it('re-checks a single Claude MCP server', async () => {
+    // Mirrors `claude mcp get <name>` output
+    const path = fakeBin(
+      'claude',
+      `[ "$3" = "rds" ] && { printf 'rds:\\n  Scope: User config\\n  Status: ✘ Failed to connect\\n'; exit 0; }\necho "No MCP server found with name: $3" >&2; exit 1`
+    )
+    await expect(checkCliMcpServer('anthropic', 'rds', path)).resolves.toEqual({ name: 'rds', status: '✘ Failed to connect' })
+    await expect(checkCliMcpServer('anthropic', 'gone', path)).resolves.toEqual({ name: 'gone', status: 'not found' })
+  })
+
+  it('shows Codex servers that still need an OAuth login', async () => {
+    const path = fakeBin(
+      'codex',
+      `echo '[{"name":"linear","enabled":true,"auth_status":"not_logged_in"},{"name":"prom","enabled":true,"auth_status":"unsupported"}]'`
+    )
+    await expect(listCliMcpServers('openai', path)).resolves.toEqual([
+      { name: 'linear', status: '! Needs authentication' },
+      { name: 'prom', status: '' }
+    ])
+    await expect(checkCliMcpServer('openai', 'linear', path)).resolves.toEqual({ name: 'linear', status: '! Needs authentication' })
   })
 
   it('passes images to codex as files and removes them afterwards', async () => {

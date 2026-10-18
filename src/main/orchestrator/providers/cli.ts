@@ -645,8 +645,11 @@ async function listCodexMcpServers(path: string): Promise<CliMcpServer[] | null>
   const { error, output } = await execCli('codex', [...CODEX_NO_PLUGINS, 'mcp', 'list', '--json'], path)
   if (error) return null
   try {
-    const servers = JSON.parse(output.trim()) as { name: string; enabled?: boolean }[]
-    return servers.filter((s) => s.enabled !== false).map((s) => ({ name: s.name, status: '' }))
+    const servers = JSON.parse(output.trim()) as { name: string; enabled?: boolean; auth_status?: string }[]
+    // Codex doesn't health-check servers here; only a missing OAuth login is worth showing
+    return servers
+      .filter((s) => s.enabled !== false)
+      .map((s) => ({ name: s.name, status: s.auth_status === 'not_logged_in' ? '! Needs authentication' : '' }))
   } catch {
     return null
   }
@@ -657,4 +660,19 @@ export async function listCliMcpServers(provider: SubscriptionProvider, path: st
   // Health-checks every server, so it's slow (~30s with many servers)
   const { output } = await execCli('claude', ['mcp', 'list'], path, 90_000)
   return parseClaudeMcpList(output)
+}
+
+// Re-checks one server for the chooser: Claude health-checks it (~2s),
+// Codex re-reads its config. Each agent call connects afresh anyway, so this
+// only refreshes the shown status.
+export async function checkCliMcpServer(
+  provider: SubscriptionProvider,
+  name: string,
+  path: string
+): Promise<CliMcpServer> {
+  if (provider === 'openai') {
+    return (await listCodexMcpServers(path))?.find((s) => s.name === name) ?? { name, status: 'not found' }
+  }
+  const { output } = await execCli('claude', ['mcp', 'get', name], path, 30_000)
+  return { name, status: /^\s*Status:\s*(.+)$/m.exec(output)?.[1]?.trim() ?? 'not found' }
 }

@@ -354,6 +354,8 @@ export interface ElrondAPI {
   // MCP servers configured in the provider's CLI; cached per app run unless
   // refresh is set (listing Claude's health-checks every server, ~30s)
   listCliMcpServers: (provider: SubscriptionProvider, refresh?: boolean) => Promise<CliMcpServer[]>
+  // Re-checks one CLI MCP server's status (Claude health-checks it, ~2s)
+  checkCliMcpServer: (provider: SubscriptionProvider, name: string) => Promise<CliMcpServer>
 
   // Agents
   getAgents: () => Promise<AgentConfig[]>
