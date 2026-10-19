@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest'
 import type { AgentConfig } from '@shared/types'
-import { agentDisplayName, resolveAgentMeta } from './providers'
+import { agentDisplayName, keepsModelAfterSwitch, resolveAgentMeta } from './providers'
 
 const agent = (partial: Partial<AgentConfig> & Pick<AgentConfig, 'name' | 'provider'>): AgentConfig => ({
   id: 'id-' + partial.name,
@@ -103,5 +103,26 @@ describe('resolveAgentMeta', () => {
       displayName: 'Agent',
       provider: 'openai'
     })
+  })
+})
+
+describe('keepsModelAfterSwitch', () => {
+  const claudeAliases = ['sonnet', 'opus', 'haiku', 'fable']
+
+  it('keeps models the new backend lists', () => {
+    expect(keepsModelAfterSwitch('opus', claudeAliases, 'anthropic', 'subscription')).toBe(true)
+  })
+
+  it('keeps full Claude names on the Claude CLI, which accepts them', () => {
+    expect(keepsModelAfterSwitch('claude-sonnet-4-5-20250514', claudeAliases, 'anthropic', 'subscription')).toBe(true)
+  })
+
+  it('remaps models the new backend cannot run', () => {
+    expect(keepsModelAfterSwitch('gpt-4o', ['gpt-5.6-sol'], 'openai', 'subscription')).toBe(false)
+    expect(keepsModelAfterSwitch('opus', ['claude-opus-5-5'], 'anthropic', 'api')).toBe(false)
+  })
+
+  it('never remaps when the model list is unavailable', () => {
+    expect(keepsModelAfterSwitch('gpt-4o', [], 'openai', 'subscription')).toBe(true)
   })
 })

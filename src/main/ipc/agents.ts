@@ -4,7 +4,9 @@ import { listOpenAIModels } from '../orchestrator/providers/openai'
 import { listAnthropicModels } from '../orchestrator/providers/anthropic'
 import { listGoogleModels } from '../orchestrator/providers/google'
 import { listOllamaModels } from '../orchestrator/providers/ollama'
-import { getAgents, getOllamaBaseUrl, saveAgents } from '../agentStore'
+import { CLAUDE_CLI_MODELS, listCodexModels } from '../orchestrator/providers/cli'
+import { getAgents, getOllamaBaseUrl, saveAgents, usesSubscription } from '../agentStore'
+import { getShellPath } from '../mcp/shellEnv'
 import type { AgentConfig, ProviderName, DeliberationRequest } from '../../shared/types'
 
 export function registerAgentsHandlers(): void {
@@ -26,6 +28,9 @@ export function registerAgentsHandlers(): void {
 
   // credential = API key for cloud providers, optional base-URL override for ollama
   ipcMain.handle('models:list', async (_, provider: ProviderName, credential?: string) => {
+    if (usesSubscription(provider)) {
+      return provider === 'anthropic' ? CLAUDE_CLI_MODELS : listCodexModels(await getShellPath())
+    }
     switch (provider) {
       case 'openai':
         return listOpenAIModels(credential ?? '')

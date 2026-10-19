@@ -34,6 +34,9 @@ export function AgentRow({
 
   const isSynthesizer = synthesizerAgentId === agent.id
   const models = availableModels[agent.provider]
+  // A kept model the list doesn't offer (e.g. a full claude-* name on the
+  // Claude CLI) must stay visible instead of rendering a blank select
+  const modelOptions = agent.model && !models.includes(agent.model) ? [agent.model, ...models] : models
 
   const providerDisabled = (p: ProviderName): boolean =>
     p === 'ollama'
@@ -119,7 +122,7 @@ export function AgentRow({
                 <SelectValue placeholder="Select a model" />
               </SelectTrigger>
               <SelectContent className="max-h-52">
-                {models.map((m) => (
+                {modelOptions.map((m) => (
                   <SelectItem key={m} value={m}>
                     {m}
                   </SelectItem>

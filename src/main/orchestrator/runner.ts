@@ -61,7 +61,8 @@ export function createDeliberationRunner(runtime: DeliberationRuntime): {
     phase: 'initial' | 'debate' | 'synthesis',
     signal: AbortSignal,
     round?: number,
-    mcpTools?: NamespacedTools | null
+    mcpTools?: NamespacedTools | null,
+    toolsAllowed = false
   ): Promise<{ content: string; tokenCount: number; toolResults: ToolResult[] }> {
     const credential = await resolveCredential(agent.provider)
     const ident = { agentId: agent.id, agentName: agent.name, provider: agent.provider }
@@ -80,6 +81,7 @@ export function createDeliberationRunner(runtime: DeliberationRuntime): {
       tools: withTools ? mcpTools!.tools : undefined,
       toolIndex: withTools ? mcpTools!.toolIndex : undefined,
       mcp: withTools ? { callTool: runtime.callTool! } : undefined,
+      toolsAllowed: toolsAllowed && phase !== 'synthesis',
       onText: (delta) => send('stream:token', { ...ident, delta, phase, round }),
       onTool: (event) => send('stream:tool', { ...ident, phase, round, ...event }),
       onNotice: (message) => send('stream:notice', { message: `${agent.name}: ${message}` }),
@@ -310,7 +312,7 @@ export function createDeliberationRunner(runtime: DeliberationRuntime): {
 
       const fanOutPromises = activeAgents.map(async (agent) => {
         try {
-          const result = await streamAgent(agent, baseMessages, 'initial', signal, undefined, mcpTools)
+          const result = await streamAgent(agent, baseMessages, 'initial', signal, undefined, mcpTools, request.mcpTools !== false)
 
           insertAgentMessage('agent', agent, result.content, result.tokenCount, 0, result.toolResults)
           initialResults.push({ agent, ...result })
@@ -385,7 +387,7 @@ export function createDeliberationRunner(runtime: DeliberationRuntime): {
                   { role: 'user', content: debatePrompt }
                 ]
 
-                const result = await streamAgent(ag.agent, messages, 'debate', signal, round, mcpTools)
+                const result = await streamAgent(ag.agent, messages, 'debate', signal, round, mcpTools, request.mcpTools !== false)
                 if (signal.aborted) return
 
                 const parsed = splitDebateResponse(result.content)

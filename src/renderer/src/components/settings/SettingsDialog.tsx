@@ -10,6 +10,7 @@ import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@
 import { Badge } from '@renderer/components/ui/badge'
 import { GitHubRepoManager } from './GitHubRepoManager'
 import { MCPManager } from './MCPManager'
+import { SubscriptionAuth } from './SubscriptionAuth'
 import { Check, Loader2, Key, AlertTriangle, GitBranch, Globe, Server, RefreshCw } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
 
@@ -272,9 +273,12 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
           <TabsContent value="providers" className="space-y-6 pt-4">
             <section className="space-y-3">
               <h3 className="text-sm font-medium">API Keys</h3>
-              {PROVIDER_LIST.map(({ name, label }) => (
-                <div key={name} className="space-y-1">
-                  <label className="text-xs text-muted-foreground">{label}</label>
+              <p className="text-xs text-muted-foreground">
+                Subscription runs Anthropic and OpenAI agents on your Claude or ChatGPT plan through the
+                Claude Code / Codex CLI — install it and log in once in a terminal.
+              </p>
+              {PROVIDER_LIST.map(({ name, label }) => {
+                const keyInput = (
                   <div className="flex gap-2">
                     <Input
                       type="password"
@@ -294,8 +298,14 @@ export function SettingsDialog({ open, onOpenChange }: SettingsDialogProps): Rea
                       Test
                     </Button>
                   </div>
-                </div>
-              ))}
+                )
+                return (
+                  <div key={name} className="space-y-1">
+                    <label className="text-xs text-muted-foreground">{label}</label>
+                    {name === 'google' ? keyInput : <SubscriptionAuth provider={name}>{keyInput}</SubscriptionAuth>}
+                  </div>
+                )
+              })}
             </section>
 
             <section className="space-y-2">

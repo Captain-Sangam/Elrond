@@ -13,11 +13,37 @@
 ## Agents & Providers
 
 - Agents are named slots decoupled from providers — manage them in the Agents dialog (bot icon in the sidebar)
-- Providers: OpenAI, Anthropic, Google (cloud, API keys in Keychain) and **Ollama** (local, keyless)
+- Providers: OpenAI, Anthropic, Google (cloud, API keys in Keychain) and **Ollama** (local, keyless). OpenAI and Anthropic can also run on your ChatGPT / Claude subscription — see [Subscription Login](#subscription-login)
 - Several agents can share a provider — e.g. two different Ollama models debating each other
 - Per-agent provider + model assignment, enable/disable toggle, and synthesizer selection
 - Ollama connection in Settings → Providers: server URL, test connection, discovered model list
 - Local Ollama agents cost $0 in the stats rail
+
+## Subscription Login
+
+Anthropic and OpenAI agents can run on your Claude (Pro/Max/Team) or ChatGPT (Plus/Pro) plan instead of a pay-per-token API key. Pick **Subscription** for the provider in the setup wizard or Settings → Providers.
+
+- Elrond runs the vendor's own CLI for every call — `claude -p` (Claude Code) for Anthropic, `codex exec` (Codex CLI) for OpenAI — so the CLI authenticates with your existing login and refreshes its own tokens. Elrond never reads or stores subscription tokens
+- Setup is just installing the CLI and logging in once in a terminal (`claude`, `codex login`). Choosing Subscription detects the login automatically; the Agents dialog re-checks it on every open
+- Never falls back to API billing: API-key and endpoint environment variables are stripped from the CLI's environment, Codex is forced onto the ChatGPT login, and a Claude run that reports an API-key source fails with an error
+- Runs are isolated from your CLI setup by default: no CLAUDE.md, hooks, plugins or MCP servers (`--safe-mode`), no Codex `config.toml`, shell, hooks, plugins, apps or web search, and an empty working directory so no project AGENTS.md is found
+- **MCP servers from your CLI (opt-in):** under the provider's Subscription status, *Use Claude Code servers* / *Use Codex servers* lists the MCP servers configured in that CLI (`claude mcp list`, `codex mcp list`) with a checkbox each — nothing is checked by default. Checked servers' tools are available to that provider's agents in the initial and debate phases (never synthesis or the moderator, and not when the chat's MCP toggle is off), and their calls show as tool chips
+  - Headless runs can't show approval prompts, so checked servers' tools **run without asking** — leave servers that can change or delete things unchecked. Claude runs with `--permission-mode dontAsk`, pre-approves exactly the checked servers and denies any `mcp__` rules your Claude settings (user or managed) already allow for unchecked ones, so calls to anything else are refused; Codex switches every unchecked server off for the run (and fails closed — no MCP at all — if it can't list them or a server name can't be addressed)
+  - With servers on, Claude loads your user config with hooks, skills and CLAUDE.md kept off, and waits up to 15s per call for your MCP servers to start (it waits on all configured servers, not just the checked ones); Codex loads your `config.toml` with plugins, apps, hooks, the shell and `notify` kept off and the built-in OpenAI provider pinned, so a custom provider there can't bill an API account
+  - Listing Claude's servers health-checks each one (~30s); the list is cached until *Re-check all*. A server that isn't connected has a ↻ to re-check just that one (~2s for Claude). There's no persistent connection to reconnect — every agent call connects afresh — so re-checking only refreshes the status. Servers marked *Needs auth* sign in through the CLI (`claude` → `/mcp`, or `codex mcp login <name>`)
+- Model lists come from the CLI: Claude Code aliases (`sonnet`, `opus`, `haiku`, `fable` — always the latest model; full `claude-*` names also work) and the Codex model catalog
+- Switching modes moves agents off models the new backend can't run; the switch is disabled while a deliberation is running
+- Subscription calls cost $0 in the stats rail
+- **Plan usage** in the stats rail footer: each rate-limit window (e.g. 5h, Weekly) with percent used and time until reset. Codex limits are read on demand through `codex app-server` (no model call); Claude Code only reports limits during a run, so its numbers are from the last call ("as of" time) and appear after the first Claude run since launch. Refreshed when the panel opens, on a mode switch, and after each deliberation
+
+Limits:
+
+- Elrond's own MCP servers (the MCP tab) don't reach subscription agents — only the CLI servers you opt into above; without any, agents answer without tools (the same fallback as a model without tool support)
+- Codex returns each answer as one complete message rather than streaming token by token
+- Codex can't read PDF attachments (the model is told the file was omitted); images work on both
+- Each call starts a CLI process, adding about a second or two
+- Codex still applies a user-wide `~/.codex/AGENTS.md` if you have one
+- Usage limits are your plan's; hitting one shows the CLI's error
 
 ## Attachments
 
@@ -50,7 +76,7 @@
 
 ## MCP Tools
 
-- Connect [Model Context Protocol](https://modelcontextprotocol.io) servers in Settings → MCP; agents call their tools natively mid-deliberation (all four providers, including tool-capable Ollama models)
+- Connect [Model Context Protocol](https://modelcontextprotocol.io) servers in Settings → MCP; agents call their tools natively mid-deliberation (all four providers, including tool-capable Ollama models). Subscription agents can't use these — they use MCP servers you opt into from their CLI setup ([Subscription Login](#subscription-login))
 - Six presets ship out of the box: **Linear**, **Notion**, **GitHub**, **Sentry**, **Context7** (library docs), and **Filesystem** (local folders you pick)
 - Linear, Notion, and Sentry authenticate via browser OAuth on first connect (through the `mcp-remote` bridge — requires `npx`); GitHub and Context7 take an API key; Filesystem needs no auth
 - Custom servers: any stdio command or Streamable HTTP endpoint, with env vars / headers — values marked "Secret" are stored in the macOS Keychain, never in the database
@@ -72,7 +98,7 @@
 
 - macOS-native window with hidden titlebar and traffic lights
 - Session sidebar with search, starring, rename, delete
-- Live stats rail (toggle in the top bar): pinned session totals (tokens, in/out split, cost, total time), a full card per turn with phase-by-phase breakdown on the live turn, consensus outcomes, and an all-sessions turn counter — turns stack instead of resetting on follow-up questions
+- Live stats rail (toggle in the top bar): pinned session totals (tokens, in/out split, cost, total time), a full card per turn with phase-by-phase breakdown on the live turn, consensus outcomes, and an all-sessions turn counter — turns stack instead of resetting on follow-up questions. Providers on a subscription add a plan-usage footer (percent used and time to reset per limit window)
 - Scroll freely while agents stream — auto-follow only when pinned to the bottom, with a jump-to-bottom button
 - Collapsible debate rounds with per-round moderator verdicts
 - Syntax-highlighted code blocks (themed from the active Astryx theme's syntax tokens) with copy buttons
@@ -85,7 +111,7 @@
 ## Settings
 
 - Tabbed dialog: General, Providers, GitHub, Web Search, MCP
-- Cloud API keys with test buttons; Ollama server URL with test connection + model list
+- Cloud API keys with test buttons, or the API key / Subscription switch for OpenAI and Anthropic; Ollama server URL with test connection + model list
 - Per-agent model selection lives in the Agents dialog (live dropdowns from each provider)
 - Debate toggle and max debate rounds (1–5)
 - Custom system prompt for all agents

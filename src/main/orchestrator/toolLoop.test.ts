@@ -243,6 +243,25 @@ describe('runToolLoop', () => {
     expect(h.iterationSnapshots).toHaveLength(1)
   })
 
+  it('surfaces tool calls the provider ran itself without executing them', async () => {
+    const h = makeHarness()
+    const call = { callId: 'c1', toolName: 'health_check', serverName: 'prom', argsJson: '{}' }
+    const { provider, streams } = makeProvider([
+      [
+        { type: 'tool_activity', activity: { ...call, status: 'running' } },
+        { type: 'tool_activity', activity: { ...call, status: 'ok', resultText: 'healthy' } },
+        text('Healthy')
+      ]
+    ])
+    const { mcp, calls } = makeMcp()
+    const result = await runToolLoop(loopParams(h, { provider, model: 'm-cli-activity', mcp }))
+    expect(result.content).toBe('Healthy')
+    expect(h.toolEvents.map((e) => e.status)).toEqual(['running', 'ok'])
+    expect(result.toolResults).toEqual([{ ...call, content: 'healthy', isError: false }])
+    expect(calls).toHaveLength(0)
+    expect(streams).toHaveLength(1)
+  })
+
   it('passes tools to the stream but stays single-iteration when the model makes no calls', async () => {
     const h = makeHarness()
     const nt = linearTools()

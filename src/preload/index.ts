@@ -21,6 +21,10 @@ const api: ElrondAPI = {
   testApiKey: (provider, key) => ipcRenderer.invoke('keys:test', provider, key),
   testWebSearchKey: (key) => ipcRenderer.invoke('websearch:test', key),
   testOllamaConnection: (baseUrl) => ipcRenderer.invoke('ollama:test', baseUrl),
+  detectSubscription: (provider) => ipcRenderer.invoke('subscription:detect', provider),
+  getSubscriptionUsage: (provider) => ipcRenderer.invoke('subscription:usage', provider),
+  listCliMcpServers: (provider, refresh?) => ipcRenderer.invoke('subscription:mcpServers', provider, refresh),
+  checkCliMcpServer: (provider, name) => ipcRenderer.invoke('subscription:mcpCheck', provider, name),
 
   // Agents
   getAgents: () => ipcRenderer.invoke('agents:list'),

@@ -1,10 +1,11 @@
-import React, { useState, useCallback, useEffect } from 'react'
+import React, { useState, useCallback, useEffect, useRef } from 'react'
 import { useSettingsStore } from '@renderer/stores/settingsStore'
 import { useAgentsStore } from '@renderer/stores/agentsStore'
 import { Button } from '@renderer/components/ui/button'
 import { Input } from '@renderer/components/ui/input'
 import { Badge } from '@renderer/components/ui/badge'
 import { Select, SelectTrigger, SelectValue, SelectContent, SelectItem } from '@renderer/components/ui/select'
+import { SubscriptionAuth } from '@renderer/components/settings/SubscriptionAuth'
 import { Check, ChevronRight, Key, Loader2, AlertTriangle, Sparkles, Keyboard, Cpu, Server } from 'lucide-react'
 import type { ProviderName } from '@shared/types'
 
@@ -43,6 +44,8 @@ export function SetupWizard(): React.JSX.Element {
     google: []
   })
   const [modelsLoading, setModelsLoading] = useState(false)
+  // Keys that passed their test — still valid after a detour to Subscription
+  const testedKeys = useRef(new Set<CloudProvider>())
   const { ollamaStatus, ollamaModels, testOllama } = useAgentsStore()
 
   useEffect(() => {
@@ -62,10 +65,9 @@ export function SetupWizard(): React.JSX.Element {
     const validProviders = PROVIDERS.filter(({ name }) => keyStatus[name] === 'valid')
     Promise.all(
       validProviders.map(async ({ name }) => {
-        const key = apiKeys[name]
-        if (!key) return { name, models: [] as string[] }
+        // No key in subscription mode — main lists the CLI's models instead
         try {
-          const list = await window.elrond.listModels(name, key)
+          const list = await window.elrond.listModels(name, apiKeys[name] || undefined)
           return { name, models: list }
         } catch {
           return { name, models: [] as string[] }
@@ -78,6 +80,15 @@ export function SetupWizard(): React.JSX.Element {
         next[name] = list
       }
       setAvailableModels(next)
+      // A default the backend doesn't offer (e.g. gpt-4o on a ChatGPT login)
+      // would fail at run time; an empty list keeps it for free-text editing
+      setModels((prev) => {
+        const fixed = { ...prev }
+        for (const { name, models: list } of results) {
+          if (list.length > 0 && !list.includes(fixed[name])) fixed[name] = list[0]
+        }
+        return fixed
+      })
       setModelsLoading(false)
     })
 
@@ -91,11 +102,34 @@ export function SetupWizard(): React.JSX.Element {
     const valid = await window.elrond.testApiKey(provider, key)
     if (valid) {
       await window.elrond.setApiKey(provider, key)
+      testedKeys.current.add(provider)
       setKeyStatus((prev) => ({ ...prev, [provider]: 'valid' }))
     } else {
+      testedKeys.current.delete(provider)
       setKeyStatus((prev) => ({ ...prev, [provider]: 'invalid' }))
     }
   }, [apiKeys])
+
+  const keyInput = (name: CloudProvider, placeholder: string): React.JSX.Element => (
+    <div className="flex gap-2">
+      <Input
+        type="password"
+        value={apiKeys[name]}
+        onChange={(e) => setApiKeys((prev) => ({ ...prev, [name]: e.target.value }))}
+        placeholder={placeholder}
+        className="h-9 text-xs"
+      />
+      <Button
+        variant="outline"
+        size="sm"
+        className="h-9"
+        onClick={() => handleTestKey(name)}
+        disabled={!apiKeys[name] || keyStatus[name] === 'testing'}
+      >
+        {keyStatus[name] === 'testing' ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : 'Test'}
+      </Button>
+    </div>
+  )
 
   const handleFinish = useCallback(async () => {
     for (const [provider, model] of Object.entries(models)) {
@@ -205,8 +239,9 @@ export function SetupWizard(): React.JSX.Element {
               <h2 className="text-lg font-semibold">API Keys</h2>
             </div>
             <p className="text-xs text-muted-foreground">
-              Enter API keys for cloud providers (stored securely in your macOS Keychain), or run
-              the council fully locally with Ollama — you need at least two agents total.
+              Enter API keys for cloud providers (stored securely in your macOS Keychain), use your
+              Claude or ChatGPT subscription through the Claude Code / Codex CLI, or run the council
+              fully locally with Ollama — you need at least two agents total.
             </p>
 
             {PROVIDERS.map(({ name, label, placeholder }) => (
@@ -226,28 +261,19 @@ export function SetupWizard(): React.JSX.Element {
                     </Badge>
                   )}
                 </div>
-                <div className="flex gap-2">
-                  <Input
-                    type="password"
-                    value={apiKeys[name]}
-                    onChange={(e) => setApiKeys((prev) => ({ ...prev, [name]: e.target.value }))}
-                    placeholder={placeholder}
-                    className="h-9 text-xs"
-                  />
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="h-9"
-                    onClick={() => handleTestKey(name)}
-                    disabled={!apiKeys[name] || keyStatus[name] === 'testing'}
+                {name === 'google' ? (
+                  keyInput(name, placeholder)
+                ) : (
+                  <SubscriptionAuth
+                    provider={name}
+                    onReadyChange={(ready, mode) => {
+                      const keyStillValid = mode === 'api' && testedKeys.current.has(name)
+                      setKeyStatus((prev) => ({ ...prev, [name]: ready || keyStillValid ? 'valid' : 'idle' }))
+                    }}
                   >
-                    {keyStatus[name] === 'testing' ? (
-                      <Loader2 className="h-3.5 w-3.5 animate-spin" />
-                    ) : (
-                      'Test'
-                    )}
-                  </Button>
-                </div>
+                    {keyInput(name, placeholder)}
+                  </SubscriptionAuth>
+                )}
               </div>
             ))}
 

@@ -31,7 +31,9 @@ and live next to the modules they cover (`src/**/*.test.ts`, plus
 `scripts/bench/**/*.test.ts`). They focus on
 the pure logic that regresses silently: prompt building and verdict parsing,
 tool namespacing, provider message conversion, cost/token estimation, database
-migrations (against in-memory SQLite), and store state transitions. Native
+migrations (against in-memory SQLite), and store state transitions. The
+subscription CLI adapters (`providers/cli.test.ts`) run against stand-in
+`claude` / `codex` shell scripts on a temporary PATH, never the real CLIs. Native
 modules with side effects (keytar) are always mocked — tests must never touch
 the real keychain or the network.
 

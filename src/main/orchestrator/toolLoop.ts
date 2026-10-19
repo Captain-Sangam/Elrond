@@ -101,6 +101,8 @@ export interface ToolLoopParams {
   tools?: ToolDefinition[]
   toolIndex?: Map<string, ToolIndexEntry>
   mcp?: McpBridge
+  // Passed through to the provider — see StreamChatOptions.toolsAllowed
+  toolsAllowed?: boolean
   onText: (delta: string) => void
   onTool?: (event: ToolLifecycleEvent) => void
   onNotice?: (message: string) => void
@@ -170,7 +172,8 @@ export async function runToolLoop(p: ToolLoopParams): Promise<ToolLoopResult> {
     try {
       const stream = p.provider.streamChat(msgs, p.model, p.credential, {
         signal: callController.signal,
-        tools: useTools ? p.tools : undefined
+        tools: useTools ? p.tools : undefined,
+        toolsAllowed: p.toolsAllowed
       })
       for await (const chunk of stream) {
         if (p.signal.aborted) break
@@ -178,6 +181,28 @@ export async function runToolLoop(p: ToolLoopParams): Promise<ToolLoopResult> {
           iterationText += chunk.delta
           fullText += chunk.delta
           p.onText(chunk.delta)
+        } else if (chunk.type === 'tool_activity') {
+          // Already executed by the provider — surface it like our own calls
+          const a = chunk.activity
+          p.onTool?.({
+            callId: a.callId,
+            toolName: a.toolName,
+            serverName: a.serverName,
+            status: a.status,
+            argsPreview: a.argsJson.slice(0, PREVIEW_CHARS),
+            resultPreview: a.status === 'ok' ? a.resultText?.slice(0, PREVIEW_CHARS) : undefined,
+            errorMessage: a.status === 'error' ? a.resultText?.slice(0, PREVIEW_CHARS) : undefined
+          })
+          if (a.status !== 'running') {
+            toolResults.push({
+              callId: a.callId,
+              toolName: a.toolName,
+              serverName: a.serverName,
+              argsJson: a.argsJson,
+              content: truncate(a.resultText ?? '', TOOL_RESULT_MAX_CHARS),
+              isError: a.status === 'error'
+            })
+          }
         } else {
           calls.push(chunk.call)
         }

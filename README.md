@@ -14,7 +14,7 @@ Ask one question, compare answers from OpenAI, Anthropic, Google, or local Ollam
 
 ## Setup and install
 
-Requirements: **macOS 13+**, **Node.js 22.12+** (or **20.19+** on the 20.x line), and API keys for cloud models or a running [Ollama](https://ollama.com) server with models already pulled.
+Requirements: **macOS 13+**, **Node.js 22.12+** (or **20.19+** on the 20.x line), and API keys for cloud models, a Claude or ChatGPT subscription with the [Claude Code](https://docs.claude.com/en/docs/claude-code) or [Codex](https://github.com/openai/codex) CLI logged in, or a running [Ollama](https://ollama.com) server with models already pulled.
 
 ```bash
 git clone https://github.com/Captain-Sangam/Elrond.git elrond

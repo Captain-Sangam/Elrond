@@ -104,6 +104,35 @@ export type ProviderName = 'openai' | 'anthropic' | 'google' | 'ollama'
 // key. Ollama is deliberately absent — it's local and keyless.
 export type KeyProvider = 'openai' | 'anthropic' | 'google' | 'tavily'
 
+// Providers that can run on the user's consumer subscription through the
+// vendor's CLI (claude / codex) instead of an API key. The choice is stored
+// per provider as the `${provider}_auth` setting.
+export type SubscriptionProvider = 'anthropic' | 'openai'
+export type AuthMode = 'api' | 'subscription'
+
+export interface SubscriptionStatus {
+  ok: boolean
+  detail: string
+}
+
+// One rate-limit window of a subscription plan (e.g. 5h, Weekly)
+export interface UsageWindow {
+  label: string
+  usedPercent: number // 0–100
+  resetsAt: number | null // epoch ms
+}
+
+// An MCP server configured in the user's claude / codex CLI
+export interface CliMcpServer {
+  name: string
+  status: string // e.g. "✓ Connected" (Claude); empty when the CLI doesn't report one
+}
+
+export interface SubscriptionUsage {
+  windows: UsageWindow[]
+  checkedAt: number // epoch ms the CLI reported these numbers
+}
+
 // A named deliberation slot. Agents are decoupled from providers: several
 // agents may share a provider (e.g. two different Ollama models debating).
 export interface AgentConfig {
@@ -317,6 +346,16 @@ export interface ElrondAPI {
   testApiKey: (provider: ProviderName, key: string) => Promise<boolean>
   testWebSearchKey: (key: string) => Promise<boolean>
   testOllamaConnection: (baseUrl: string) => Promise<boolean>
+  // Whether the provider's CLI is installed and logged in to a subscription
+  detectSubscription: (provider: SubscriptionProvider) => Promise<SubscriptionStatus>
+  // Plan limits used so far; null when unknown (Claude reports them only
+  // during a run, so this is the last run's reading)
+  getSubscriptionUsage: (provider: SubscriptionProvider) => Promise<SubscriptionUsage | null>
+  // MCP servers configured in the provider's CLI; cached per app run unless
+  // refresh is set (listing Claude's health-checks every server, ~30s)
+  listCliMcpServers: (provider: SubscriptionProvider, refresh?: boolean) => Promise<CliMcpServer[]>
+  // Re-checks one CLI MCP server's status (Claude health-checks it, ~2s)
+  checkCliMcpServer: (provider: SubscriptionProvider, name: string) => Promise<CliMcpServer>
 
   // Agents
   getAgents: () => Promise<AgentConfig[]>
@@ -357,7 +396,8 @@ export interface ElrondAPI {
   onIndexProgress: (callback: (progress: IndexProgressEvent) => void) => () => void
 
   // Models — credential is the API key for cloud providers, or an optional
-  // base-URL override for ollama (defaults to the stored ollama_base_url)
+  // base-URL override for ollama (defaults to the stored ollama_base_url).
+  // Providers in subscription mode list their CLI's models and ignore it.
   listModels: (provider: ProviderName, credential?: string) => Promise<string[]>
 
   // Export

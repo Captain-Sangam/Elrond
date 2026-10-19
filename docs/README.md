@@ -3,7 +3,7 @@
 Start with [setup and install](../README.md#setup-and-install).
 
 - [User guide](user-guide.md) — deliberation, providers, first launch, integrations, and privacy
-- [Features](features.md) — agents, attachments, settings, and cost estimates
+- [Features](features.md) — agents, subscription login, attachments, settings, and cost estimates
 - [Architecture](architecture.md) — pipeline, provider adapters, persistence, and UI
 - [Development](development.md) — commands, native dependencies, and testing
 - [Packaging and installation](deployment.md) — standalone macOS builds and updates

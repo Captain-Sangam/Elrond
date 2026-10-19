@@ -2,7 +2,7 @@
 
 Ask one question, compare independent answers, and let the models challenge and revise each other's reasoning before a final synthesis. Elrond brings that workflow into a desktop app for code questions, research, writing, and decisions that benefit from several perspectives.
 
-Mix OpenAI, Anthropic, Google, and local Ollama models in the same council. Conversations and attachments are stored on your Mac, credentials live in the macOS Keychain, and local deliberation can run entirely through Ollama.
+Mix OpenAI, Anthropic, Google, and local Ollama models in the same council — OpenAI and Anthropic either with API keys or on your ChatGPT / Claude subscription. Conversations and attachments are stored on your Mac, credentials live in the macOS Keychain, and local deliberation can run entirely through Ollama.
 
 See the [README](../README.md#setup-and-install) for installation and requirements.
 
@@ -34,12 +34,14 @@ The setup wizard walks you through provider credentials, model selection, and th
 
 | Provider | Setup |
 | --- | --- |
-| OpenAI | Add an [API key](https://platform.openai.com/api-keys) |
-| Anthropic | Add an [API key](https://console.anthropic.com/settings/keys) |
+| OpenAI | Add an [API key](https://platform.openai.com/api-keys), or choose **Subscription** to use your ChatGPT plan through the [Codex CLI](https://github.com/openai/codex) (install it and run `codex login` once) |
+| Anthropic | Add an [API key](https://console.anthropic.com/settings/keys), or choose **Subscription** to use your Claude plan through [Claude Code](https://docs.claude.com/en/docs/claude-code) (install it and log in once) |
 | Google | Add an [API key](https://aistudio.google.com/apikey) |
 | Ollama | Start your local server and pull the models you want to use; no API key is required |
 
 ![Elrond Agents dialog with provider and model assignments and synthesizer selection](images/agents.png)
+
+Subscription mode finds your existing CLI login automatically and shows your plan's remaining limits in the stats rail; see [Subscription Login](features.md#subscription-login) for how it works and its limits (for example, no MCP tools unless you opt into servers from your CLI setup).
 
 Manage the council in **Agents** (the bot icon in the sidebar): add or remove agents, assign provider/model pairs, enable participants, and choose the synthesizer. Several agents can use different models from the same provider, including an entirely local Ollama council.
 
@@ -51,7 +53,7 @@ The default global shortcut is **Control+Shift+Space**. It focuses Elrond while 
 | --- | --- | --- |
 | GitHub | Settings → GitHub, with a [personal access token](https://github.com/settings/tokens/new?scopes=repo&description=Elrond) | `/github` repository selection, local code indexing, and live PR, commit, and issue context |
 | Web search | Settings → Web Search, with a [Tavily key](https://app.tavily.com) | The globe toggle retrieves current results for a prompt and supplies sources to the agents |
-| MCP | Settings → MCP | Tools agents can call during initial answers and debate rounds |
+| MCP | Settings → MCP | Tools agents can call during initial answers and debate rounds (subscription agents instead use servers you choose from their CLI setup, under Settings → Providers) |
 
 MCP presets cover **Linear, Notion, GitHub, Sentry, Context7, and Filesystem**. You can also connect a custom stdio or HTTP server. Tool calls show their progress and result previews in the response panels; the input's plug toggle controls whether connected tools are available for a turn.
 
@@ -59,6 +61,6 @@ Attach images or PDFs with the paperclip, drag-and-drop, or image paste. Support
 
 ## Privacy and storage
 
-Session history, attachments, and indexed repositories stay on your machine. API keys and integration secrets are stored in the macOS Keychain. Elrond has no telemetry, cloud sync, or separate Elrond account.
+Session history, attachments, and indexed repositories stay on your machine. API keys and integration secrets are stored in the macOS Keychain. In subscription mode Elrond stores no credentials at all — the `claude` / `codex` CLI uses its own login. Elrond has no telemetry, cloud sync, or separate Elrond account.
 
-Cloud models receive the prompts and context supplied to them, and remote integrations contact their configured services. For local-only deliberation, use local Ollama models and keep cloud integrations off.
+Cloud models receive the prompts and context supplied to them — in subscription mode through the vendor's CLI — and remote integrations contact their configured services. MCP servers you choose from a CLI setup run their tools without approval prompts, so leave out anything that can change or delete things. For local-only deliberation, use local Ollama models and keep cloud integrations off.

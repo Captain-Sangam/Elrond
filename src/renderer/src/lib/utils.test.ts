@@ -120,6 +120,11 @@ describe('estimateCost', () => {
     expect(estimateCost('gpt-4o', 1000, 1000, 'openai')).toBeCloseTo(0.0125, 10)
   })
 
+  it('returns 0 for providers running on a subscription', () => {
+    expect(estimateCost('sonnet', 100_000, 100_000, 'anthropic', true)).toBe(0)
+    expect(estimateCost('gpt-4o', 1000, 1000, 'openai', true)).toBe(0)
+  })
+
   it('returns 0 for zero tokens on a non-ollama provider', () => {
     expect(estimateCost('gpt-4o', 0, 0)).toBe(0)
   })

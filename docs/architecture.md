@@ -14,7 +14,7 @@ You → Prompt → [Agent 1, Agent 2, … Agent N]
                   Synthesis → Answer
 ```
 
-Each agent is a named slot assigned a provider + model in the Agents dialog. Providers are OpenAI, Anthropic, Google (cloud, keyed) and Ollama (local, keyless). Several agents can share a provider — e.g. two different Ollama models debating each other.
+Each agent is a named slot assigned a provider + model in the Agents dialog. Providers are OpenAI, Anthropic, Google (cloud, keyed) and Ollama (local, keyless). OpenAI and Anthropic can instead run on the user's ChatGPT / Claude subscription: the orchestrator then runs the installed `codex` / `claude` CLI headless for each call (`providers/cli.ts`), chosen per provider by the `openai_auth` / `anthropic_auth` setting. Several agents can share a provider — e.g. two different Ollama models debating each other.
 
 1. **Fan-Out** — Your prompt (with any attached images/PDFs, repo context, and web search results) is sent to all enabled agents in parallel
 2. **Initial Responses** — Each agent's answer streams into its own panel
@@ -40,7 +40,8 @@ src/
     orchestrator/           Deliberation pipeline + provider adapters
       index.ts              Electron/Keychain/context services wired into the runner
       runner.ts             Injectable pipeline (database, event sink, providers, context)
-      providers/            OpenAI, Anthropic, Google, Ollama streaming adapters (multimodal, tool-calling)
+      providers/            OpenAI, Anthropic, Google, Ollama streaming adapters (multimodal, tool-calling),
+                            plus cli.ts: claude / codex CLI adapters for subscription mode
       prompts.ts            Debate round, moderator + synthesis prompt templates
       toolLoop.ts           Provider-agnostic agentic loop (stream → call MCP tools → re-stream)
       utils.ts              Pure helpers: token estimates, error-message cleanup, attachment parts
@@ -140,7 +141,8 @@ variable subsets, OFL-1.1) because Gothic names them in its tokens but ships no
 All data stays local:
 
 - **Database**: `~/Library/Application Support/Elrond/elrond.db` (SQLite)
-- **API Keys**: macOS Keychain under `com.elrond.app`
+- **API Keys**: macOS Keychain under `com.elrond.app` (subscription mode stores none; the CLI keeps its own login)
+- **Subscription settings**: `anthropic_auth` / `openai_auth` (`api` | `subscription`) and `anthropic_cli_mcp` / `openai_cli_mcp` (JSON array of opted-in CLI MCP server names) in the SQLite settings table
 - **Cloned Repos**: `~/Library/Application Support/Elrond/repos/`
 - **Attachments**: `~/Library/Application Support/Elrond/attachments/`
 
@@ -169,10 +171,11 @@ A repo enters scope via the `/github` selector, the session's attached repo, or 
 
 ### MCP tools (native function calling)
 
-Servers connected in Settings → MCP expose their tools to every agent through each provider's native function-calling API (OpenAI/Ollama `tool_calls`, Anthropic `tool_use`, Gemini `functionCall`).
+Servers connected in Settings → MCP expose their tools to every API-key and Ollama agent through each provider's native function-calling API (OpenAI/Ollama `tool_calls`, Anthropic `tool_use`, Gemini `functionCall`).
 
 - **Connection lifecycle** (`src/main/mcp/manager.ts`): enabled servers connect eagerly at app start and on toggle, cache their tool lists, push status changes to the renderer, and reconnect with capped backoff. Stdio servers spawn as child processes with the user's login-shell PATH (so `npx` works in packaged builds); HTTP servers use the Streamable HTTP transport with configurable headers.
 - **The loop** (`src/main/orchestrator/toolLoop.ts`): each agent streams, the loop executes any tool calls against the MCP manager, appends the results as tool messages, and re-streams — up to 8 iterations, with the final iteration forced tool-free so the model must answer. Tool names are namespaced per server (`linear__list_issues`); results are truncated to ~16k chars; every failure is fed back to the model as a tool-error message rather than aborting the turn.
 - **Phase scope**: tools are active during the initial fan-out and debate rounds. The moderator (strict-JSON verdict) and synthesis (merges already-debated positions) run tool-free.
+- **Subscription agents** (`providers/cli.ts`): agents running on a Claude/ChatGPT subscription go through the `claude` / `codex` CLI, which can't use these servers — they get only the MCP servers the user opts into from their CLI setup ([features](features.md#subscription-login)). The CLI runs those tools itself; the provider reports each call as a `tool_activity` chunk, which the loop shows as tool chips and records as tool results without executing anything. `StreamChatOptions.toolsAllowed` tells such providers when tools are permitted (initial and debate phases, chat MCP toggle on).
 - **Secrets**: header/env credentials are stored in the Keychain (`mcp:<serverId>:<field>`); SQLite only ever holds a `__KEYCHAIN__` sentinel. The bundled OAuth presets (Linear, Notion, Sentry) connect through the `mcp-remote` stdio bridge, which handles the browser flow and token cache itself.
 - **Native OAuth** (`src/main/mcp/oauth.ts`): HTTP servers with no configured Authorization header get the SDK's OAuth 2.1 flow on 401 — dynamic client registration, PKCE, system-browser handoff, and a loopback callback server on `127.0.0.1:17872`. Client registration and tokens live in one Keychain entry per server (`mcp:<id>:oauth`), refreshed automatically and swept on server delete. Authorization failures don't auto-retry (each attempt opens a browser tab); the user restarts the flow via Reconnect.

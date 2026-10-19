@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { effectiveSynthesizer, useAgentsStore } from './agentsStore'
 import { deriveTurnStats } from '@renderer/lib/turnStats'
+import { useSettingsStore } from './settingsStore'
 import type {
   DeliberationNotice,
   Message,
@@ -278,7 +279,8 @@ export const useSessionStore = create<SessionState>((set, get) => ({
       synthesisStream: state.synthesisStream,
       callInputTokens: state.callInputTokens,
       isDeliberating: false,
-      currentPhase: null
+      currentPhase: null,
+      authModes: useSettingsStore.getState().authModes
     })
     if (totals.input + totals.output === 0) return
 
